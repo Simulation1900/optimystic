@@ -114,6 +114,7 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
       if (!isMonthKey(key)) throw new HttpError(400, 'Months look like 2026-11.');
       const out = await tx(db, async c => {
         const existing = await listMonths(c);
+        if (existing.includes(key) && b.replace && user.role !== 'owner') throw new HttpError(403, 'Only the owner can replace a month.');
         if (existing.includes(key) && !b.replace) throw new HttpError(409, `${key} already exists. Replace it with a copy?`, { exists: true });
         let m: Month;
         if (from) {
@@ -134,6 +135,7 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
 
   app.delete('/api/months/:key', async (req, reply) => {
     const user = requireUser(req, reply); if (!user) return;
+    if (user.role !== 'owner') return reply.code(403).send({ error: 'Only the owner can delete a month.' });
     try {
       const key = keyParam(req);
       return await tx(db, async c => {

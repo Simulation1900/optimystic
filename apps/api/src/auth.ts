@@ -59,6 +59,15 @@ export function registerAuth(app: FastifyInstance, db: Db, cfg: Config) {
   });
 
   const loginLimit = { config: { rateLimit: { max: cfg.loginLimit, timeWindow: '15 minutes' } } };
+  // A second limit per email, so changing addresses doesn't buy more guesses at one login.
+  const perEmail = new Map<string, number[]>();
+  const tooMany = (email: string) => {
+    const now = Date.now(), k = email.trim().toLowerCase();
+    const hits = (perEmail.get(k) || []).filter(t => now - t < 15 * 60_000);
+    hits.push(now); perEmail.set(k, hits);
+    if (perEmail.size > 5000) perEmail.clear();
+    return hits.length > cfg.loginLimit;
+  };
 
   app.get('/api/auth/state', async req => {
     const n = (await db.query('SELECT count(*)::int AS n FROM users')).rows[0].n as number;
@@ -86,6 +95,7 @@ export function registerAuth(app: FastifyInstance, db: Db, cfg: Config) {
   app.post('/api/auth/login', loginLimit, async (req, reply) => {
     const { email, password } = (req.body || {}) as Record<string, unknown>;
     if (typeof email !== 'string' || typeof password !== 'string') return reply.code(400).send({ error: 'Enter your email and password.' });
+    if (tooMany(email)) return reply.code(429).send({ error: 'Too many tries for that login. Wait 15 minutes.' });
     const r = await db.query('SELECT id, name, email, role, password_hash FROM users WHERE email = lower($1)', [email.trim()]);
     // Verify against a dummy hash when the email is unknown so both cases take the same time.
     const row = r.rows[0] as (User & { password_hash: string }) | undefined;

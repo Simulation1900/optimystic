@@ -133,6 +133,17 @@ describe('rule 7: HELOC draws', () => {
     expect(shortfalls(m)).toEqual([]);
     expect(m.heloc.draws).toEqual([{ id: 'c1', acctId: 'sav1', amount: 600 }]);
   });
+  it('won’t undo a draw a paid HELOC bill already paid down (that would cancel the payment)', () => {
+    const m = sampleMonth();
+    m.heloc.balance = 0; m.heloc.available = 80000;
+    applyOp(m, K, { type: 'heloc.draw', id: 'd1', acctId: 'sav1', amount: 1000 });
+    applyOp(m, K, { type: 'bill.update', id: 'b-heloc', patch: { amount: 1006.58, paid: true } });
+    expect(m.heloc.balance).toBe(0);
+    expect(() => applyOp(m, K, { type: 'heloc.undoDraw', id: 'd1' })).toThrow(/Uncheck the HELOC bill first/);
+    applyOp(m, K, { type: 'bill.update', id: 'b-heloc', patch: { paid: false } });
+    applyOp(m, K, { type: 'heloc.undoDraw', id: 'd1' });
+    expect(m.heloc).toMatchObject({ balance: 0, available: 80000 });
+  });
   it('refuses to cover when the line can’t take all of it', () => {
     const m = sampleMonth();
     m.heloc.available = 100;

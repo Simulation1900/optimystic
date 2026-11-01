@@ -13,7 +13,8 @@ export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean 
   const app = Fastify({
     logger: opts.logger ?? false,
     bodyLimit: 1024 * 1024,
-    trustProxy: true // tailscale serve forwards requests from the box itself
+    // Only trust X-Forwarded-For from configured proxies; otherwise anyone on the LAN could pick their own address.
+    trustProxy: cfg.trustProxy
   });
 
   await app.register(cookie, { secret: undefined });
@@ -24,7 +25,8 @@ export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean 
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/') || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return;
     if (!allowedOrigin) return;
-    const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : '');
+    let origin = req.headers.origin || '';
+    if (!origin && req.headers.referer) { try { origin = new URL(req.headers.referer).origin; } catch { origin = ''; } }
     if (origin !== allowedOrigin) return reply.code(403).send({ error: `Open the planner at ${cfg.publicUrl} to make changes.` });
   });
 

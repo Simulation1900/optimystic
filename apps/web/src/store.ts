@@ -6,7 +6,7 @@
 // someone else changed that row first, so the latest month is shown instead. Offline, the queue waits in
 // localStorage and is sent when the connection comes back.
 import { useSyncExternalStore } from 'react';
-import { applyOp, budgetStats, clone, helocCalc, monthTotals, shortfalls, type Month, type Op } from '@optimystic/core';
+import { applyOp, budgetStats, clone, helocCalc, monthTotals, opTarget, shortfalls, type Month, type Op } from '@optimystic/core';
 import { api, ApiError, NetworkError, type MonthPayload, type User } from './api';
 
 export type Tab = 'bills' | 'loans' | 'budget' | 'settings';
@@ -64,7 +64,7 @@ export const setTab = (tab: Tab) => { set({ tab }); window.scrollTo({ top: 0 });
 
 /** Local month = server month + queued ops for it. */
 function rebuild(server: MonthPayload | null, pending: Pending[], key: string): Month | null {
-  if (!server || server.key !== key) return state.month && pending.some(p => p.key === key) ? state.month : server?.month ?? null;
+  if (!server || server.key !== key) return state.month && pending.some(p => p.key === key) ? state.month : null;
   const m = clone(server.month);
   for (const p of pending) {
     if (p.key !== key) continue;
@@ -108,11 +108,14 @@ async function openLatest() {
 export async function signedIn(user: User) {
   set({ user, phase: 'ready' });
   await openLatest();
+  flush(); // edits that were waiting when the session ran out
 }
 
 export async function signOut() {
   await api('POST', '/api/auth/logout').catch(() => {});
   try { localStorage.removeItem(LS.cache); localStorage.removeItem(LS.pending); } catch { /* ignore */ }
+  // The service worker keeps months for offline use; a signed-out device shouldn't.
+  try { if ('caches' in window) for (const k of await caches.keys()) await caches.delete(k); } catch { /* ignore */ }
   set({ user: null, phase: 'login', server: null, month: null, pending: [], months: [] });
 }
 
@@ -147,7 +150,15 @@ export function dispatch(op: Op | Op[]) {
   if (!state.month) return;
   const m = clone(state.month);
   for (const o of ops) applyOp(m, state.key, o); // throws PlannerError for anything invalid
-  set({ month: m, pending: [...state.pending, ...ops.map(o => ({ key: state.key, op: o }))] });
+  // A second quick edit to a row that already has an edit waiting carries the version from before the first one.
+  // Drop it: the waiting edit still makes the conflict check for that row, and the server applies the two in order.
+  const queued = [...state.pending];
+  for (const o of ops) {
+    const t = opTarget(o);
+    const busy = t && queued.some(p => { const q = opTarget(p.op); return p.key === state.key && q && q.table === t.table && q.id === t.id; });
+    queued.push({ key: state.key, op: busy && 'version' in o ? { ...o, version: undefined } as Op : o });
+  }
+  set({ month: m, pending: queued });
   flush();
 }
 
@@ -171,8 +182,8 @@ export async function flush() {
         if (p.key === state.key) receive(p);
       } catch (e) {
         if (e instanceof NetworkError) { set({ online: false }); break; }
+        if (e instanceof ApiError && e.status === 401) { set({ phase: 'login', user: null }); break; } // keep the queue for after sign-in
         set({ pending: state.pending.slice(1) });
-        if (e instanceof ApiError && e.status === 401) { set({ phase: 'login', user: null }); break; }
         if (e instanceof ApiError && e.status === 409) {
           toast('Someone else changed that first, so here’s the latest. Your change wasn’t saved.', true, 7000);
           const latest = e.data.latest as MonthPayload | undefined;

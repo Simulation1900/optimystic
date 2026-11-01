@@ -181,7 +181,14 @@ Database migrations run when the app starts.
 ## Security
 
 - Tailscale keeps the app off the public internet; never forward a router port to it.
-- Its own logins on top: argon2id password hashes, sign-in rate-limited (10 attempts per 15 minutes per address),
+- Port 8085 is still reachable from anything on the home network over plain HTTP (that's the address
+  `tailscale serve` forwards to). If the `tailscale` container uses host networking, close that gap by publishing
+  `"127.0.0.1:8085:8080"` in `compose.yml` and pointing `tailscale serve` at `http://127.0.0.1:8085`.
+- Create the owner login right after the first start: until an owner exists, anyone who can reach the app can.
+- Its own logins on top: argon2id password hashes, sign-in rate-limited (10 attempts per 15 minutes per address
+  and per email; `X-Forwarded-For` is ignored unless `TRUST_PROXY` lists the proxy's address),
   signed HttpOnly + Secure + SameSite=Lax session cookies, writes checked against `PUBLIC_URL`.
 - The database port is never published; secrets live only in `.env`.
+- Only the owner can load a backup, delete a month, replace a month with a copy, or add and remove logins.
+- Signing out clears the device's offline copy of the planner.
 - Every change is in the audit log (Settings → Recent changes) with who made it and the before/after values.

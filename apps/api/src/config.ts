@@ -9,6 +9,8 @@ export interface Config {
   tz: string;
   /** Login attempts allowed per IP per 15 minutes. */
   loginLimit: number;
+  /** Addresses whose X-Forwarded-For is believed (TRUST_PROXY, comma-separated). Off by default. */
+  trustProxy: string[] | false;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -26,6 +28,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     host: env.HOST || '0.0.0.0',
     webDist: env.WEB_DIST || null,
     tz: env.TZ || 'America/Chicago',
-    loginLimit: Number(env.LOGIN_LIMIT) || 10
+    loginLimit: Number(env.LOGIN_LIMIT) || 10,
+    trustProxy: env.TRUST_PROXY ? env.TRUST_PROXY.split(',').map(x => x.trim()).filter(Boolean) : false
   };
 }

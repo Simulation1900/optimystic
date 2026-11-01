@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, OWNER, owner, start, stop, PUBLIC_URL, type Ctx } from './setup.js';
 
 let ctx: Ctx;
-beforeAll(async () => { ctx = await start({ LOGIN_LIMIT: '6' }); });
+beforeAll(async () => { ctx = await start({ LOGIN_LIMIT: '9' }); });
 afterAll(async () => { await stop(ctx); });
 
 describe('two logins, one household', () => {
@@ -62,6 +62,18 @@ describe('two logins, one household', () => {
     expect((await b.get('/api/months')).statusCode).toBe(401);
   });
 
+  it('members can’t delete or replace months; a junk Referer is refused, not a crash', async () => {
+    const o = new Client(ctx.app);
+    await o.post('/api/auth/login', { email: OWNER.email, password: OWNER.password });
+    expect((await o.post('/api/months', { key: '2026-11' })).statusCode).toBe(201);
+    const m = new Client(ctx.app);
+    await m.post('/api/auth/login', { email: 'member@example.com', password: 'a brand new password' });
+    expect((await m.del('/api/months/2026-11')).statusCode).toBe(403);
+    expect((await m.post('/api/months', { key: '2026-11', from: '2026-11', replace: true })).statusCode).toBe(403);
+    const r = await m.req('POST', '/api/months', { key: '2026-12' }, { origin: '', referer: 'not a url' });
+    expect(r.statusCode).toBe(403);
+  });
+
   it('writes must come from PUBLIC_URL', async () => {
     const c = new Client(ctx.app);
     await c.post('/api/auth/login', { email: OWNER.email, password: OWNER.password });
@@ -77,6 +89,13 @@ describe('two logins, one household', () => {
     await c.post('/api/auth/logout');
     c.cookie = saved;
     expect((await c.get('/api/months')).statusCode).toBe(401);
+  });
+
+  it('a forged X-Forwarded-For doesn’t buy more guesses', async () => {
+    const c = new Client(ctx.app);
+    const codes: number[] = [];
+    for (let i = 0; i < 9; i++) codes.push((await c.req('POST', '/api/auth/login', { email: 'nobody@example.com', password: 'x' }, { 'x-forwarded-for': `10.0.0.${i}` })).statusCode);
+    expect(codes).toContain(429);
   });
 
   it('rate-limits login attempts', async () => {

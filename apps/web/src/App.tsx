@@ -146,7 +146,7 @@ function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void
         </>}
         {key && <>
           <span className="sep" />
-          <button className="tbtn danger wide-only" disabled={months.length <= 1} onClick={delMonth}>Delete month</button>
+          {user?.role === 'owner' && <button className="tbtn danger wide-only" disabled={months.length <= 1} onClick={delMonth}>Delete month</button>}
         </>}
         <button className="pbtn" onClick={onNewMonth}>New month</button>
       </div>

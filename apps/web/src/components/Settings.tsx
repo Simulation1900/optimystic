@@ -147,7 +147,11 @@ function Password() {
         <div className="err">{err}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="pbtn" style={{ marginLeft: 0 }}>Change password</button>
-          <button type="button" className="tbtn" onClick={() => signOut()}>Sign out</button>
+          <button type="button" className="tbtn" onClick={async () => {
+            const n = getState().pending.length;
+            if (n && !(await ask(`${n} edit${n > 1 ? 's haven’t' : ' hasn’t'} reached the server yet. Signing out throws ${n > 1 ? 'them' : 'it'} away.`, 'Sign out anyway'))) return;
+            signOut();
+          }}>Sign out</button>
         </div>
       </form>
     </div>

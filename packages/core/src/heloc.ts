@@ -141,6 +141,9 @@ export function helocDraw(m: Month, acctId: string, amount: number, id = uid()):
 export function undoDraw(m: Month, id: string): void {
   const h = m.heloc, d = h.draws.find(x => x.id === id);
   if (!d) throw new PlannerError('That draw isn’t in this month.', 404);
+  // Undoing after a HELOC payment already paid it down would leave a negative balance and quietly cancel that payment.
+  if ((Number(h.balance) || 0) < d.amount - 0.001)
+    throw new PlannerError('This month’s HELOC payment already paid part of that draw down. Uncheck the HELOC bill first, then undo the draw.', 422);
   const a = m.accounts.find(x => x.id === d.acctId);
   if (a) a.balance = r2((Number(a.balance) || 0) - d.amount);
   h.balance = r2((Number(h.balance) || 0) - d.amount);
