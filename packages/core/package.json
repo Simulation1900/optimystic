@@ -1,0 +1,19 @@
+{
+  "name": "@optimystic/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The planner's rules as plain functions: no database, no screen code.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "4.1.12",
+    "typescript": "5.9.3",
+    "@types/node": "22.19.1"
+  }
+}

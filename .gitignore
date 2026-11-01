@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+test-results/
+playwright-report/
+.private-fixtures/

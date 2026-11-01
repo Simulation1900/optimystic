@@ -1,0 +1,154 @@
+{
+  "current": "2026-11",
+  "months": {
+    "2026-11": {
+      "accounts": [
+        {
+          "id": "chk1",
+          "name": "Sample Checking",
+          "balance": 500.0,
+          "color": "#5c8a72",
+          "deposit": 1500
+        },
+        {
+          "id": "chk2",
+          "name": "Joint Checking",
+          "balance": 120.0,
+          "color": "#8a6fae",
+          "deposit": 2000
+        },
+        {
+          "id": "sav1",
+          "name": "Savings",
+          "balance": 300.0,
+          "color": "#c0834f",
+          "deposit": 0
+        }
+      ],
+      "bills": [
+        {
+          "id": "b-mort",
+          "name": "Mortgage",
+          "amount": 1649.63,
+          "accountId": "chk2",
+          "recurring": true,
+          "dueDay": 1,
+          "paid": false
+        },
+        {
+          "id": "b-heloc",
+          "name": "HELOC",
+          "amount": 361.66,
+          "accountId": "chk1",
+          "recurring": true,
+          "dueDay": null,
+          "paid": false
+        },
+        {
+          "id": "b-car",
+          "name": "Car payment",
+          "amount": 276.58,
+          "accountId": "chk1",
+          "recurring": true,
+          "dueDay": 15,
+          "paid": false
+        },
+        {
+          "id": "b-net",
+          "name": "Internet",
+          "amount": 80.0,
+          "accountId": "chk1",
+          "recurring": true,
+          "dueDay": null,
+          "paid": true,
+          "balanceApplied": {
+            "acctId": "chk1",
+            "amount": 80.0
+          }
+        },
+        {
+          "id": "b-card",
+          "name": "Chase Credit Bill",
+          "amount": 900.0,
+          "accountId": "sav1",
+          "recurring": true,
+          "dueDay": null,
+          "paid": false
+        },
+        {
+          "id": "b-tv",
+          "name": "Streaming",
+          "amount": 15.99,
+          "accountId": null,
+          "recurring": true,
+          "dueDay": null,
+          "paid": false
+        },
+        {
+          "id": "b-gift",
+          "name": "Birthday gift",
+          "amount": 40.0,
+          "accountId": "chk1",
+          "recurring": false,
+          "dueDay": null,
+          "paid": true
+        }
+      ],
+      "heloc": {
+        "limit": 80000,
+        "rate": 8,
+        "start": "2025-05",
+        "drawYears": 10,
+        "repayYears": 10,
+        "balance": 55001.82,
+        "available": 24998.18,
+        "ytdInterest": 3000.0,
+        "draws": []
+      },
+      "loans": [
+        {
+          "id": "car1",
+          "kind": "car",
+          "name": "Sample Sedan",
+          "lender": "Sample Bank",
+          "balance": 3922.35,
+          "rate": 4.68,
+          "payment": 276.58,
+          "escrow": 0,
+          "original": 17332.73,
+          "open": "2021-11",
+          "term": 72,
+          "vin": "",
+          "purchasePrice": 22000,
+          "value": 12500,
+          "valueAsOf": "2026-11",
+          "valueRate": -10,
+          "valueEstimated": true,
+          "billName": "Car payment",
+          "customPmt": 0
+        },
+        {
+          "id": "mortgage",
+          "kind": "home",
+          "name": "Mortgage",
+          "lender": "",
+          "balance": 216054.15,
+          "rate": 2.75,
+          "payment": 1649.63,
+          "escrow": 631.48,
+          "original": 249400,
+          "open": "2020-12",
+          "term": 360,
+          "vin": "",
+          "purchasePrice": 0,
+          "value": 350000,
+          "valueAsOf": "2026-11",
+          "valueRate": 3,
+          "valueEstimated": false,
+          "billName": "Mortgage",
+          "customPmt": 0
+        }
+      ]
+    }
+  }
+}
