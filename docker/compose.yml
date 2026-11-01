@@ -1,0 +1,61 @@
+# Bill Planner on ZimaOS. Put this file and .env in /DATA/AppData/bill-planner, then:
+#   cd /DATA/AppData/bill-planner && sudo /DATA/docker-compose up -d
+name: bill-planner
+services:
+  app:
+    image: ghcr.io/simulation1900/optimystic:1.0.0
+    container_name: bill-planner
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://planner:${DB_PASSWORD}@db:5432/planner
+      SESSION_SECRET: ${SESSION_SECRET}
+      PUBLIC_URL: ${PUBLIC_URL}
+      TZ: America/Chicago
+    ports:
+      - "8085:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 30s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    container_name: bill-planner-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: planner
+      POSTGRES_USER: planner
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: America/Chicago
+    volumes:
+      - /DATA/AppData/bill-planner/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planner -d planner"]
+      interval: 10s
+      retries: 5
+
+  backup:
+    image: postgres:16-alpine
+    container_name: bill-planner-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+      TZ: America/Chicago
+    volumes:
+      - /DATA/AppData/bill-planner/backups:/backups      # NVMe
+      - /DATA/mnt/disk2/backups/bill-planner:/disk2      # media-pool-2 leg
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          f=/backups/planner-$$(date +%F).dump
+          pg_dump -h db -U planner -d planner -Fc -f "$$f" && cp "$$f" /disk2/
+          find /backups /disk2 -name 'planner-*.dump' -mtime +30 -delete
+          sleep 86400
+        done

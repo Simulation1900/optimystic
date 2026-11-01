@@ -1,0 +1,126 @@
+/* Additions to the planner's own styles (planner.css) for the app: sign-in, sync status, sheets, phone layout. */
+
+html{-webkit-text-size-adjust:100%}
+body{min-height:100vh;min-height:100dvh}
+:root{--tabbar:0px;--safe-b:env(safe-area-inset-bottom,0px)}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- sign-in ---------- */
+.gate{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 16px}
+.gatecard{width:min(400px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:28px}
+.gatecard h1{font:500 30px/1.1 var(--serif);margin:4px 0 6px}
+.gatecard .lede{color:var(--muted);font-size:13.5px;margin:0 0 6px}
+.gatecard label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:14px 0 5px}
+.gatecard input{width:100%;border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:10px 12px;font-size:16px}
+.gatecard input:focus{outline:none;border-color:var(--accent)}
+.err{color:var(--bad);font-size:13px;margin-top:10px;min-height:1px}
+.err:empty{display:none}
+
+/* ---------- header extras ---------- */
+.syncpill{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel)}
+.syncpill i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.syncpill.offline i{background:var(--warn)}
+.syncpill.saving i{background:var(--faint);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.who{font-size:12px;color:var(--muted)}
+.iconbtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;width:36px;height:36px;display:inline-grid;place-items:center;cursor:pointer;color:var(--muted)}
+.iconbtn:hover{color:var(--ink);border-color:var(--faint)}
+.iconbtn svg{width:18px;height:18px}
+
+/* ---------- toasts ---------- */
+.toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + var(--tabbar) + var(--safe-b));z-index:60;display:flex;flex-direction:column;gap:8px;width:min(520px,calc(100vw - 32px));pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);border-radius:12px;padding:11px 14px;font-size:13.5px;box-shadow:var(--shadow-lift);pointer-events:auto;display:flex;gap:10px;align-items:center}
+.toast.bad{background:var(--bad);color:#fff}
+.toast button{margin-left:auto;background:none;border:none;color:inherit;opacity:.8;cursor:pointer;font-size:16px}
+
+/* ---------- sheets (phone pickers) ---------- */
+dialog.sheet{margin:auto auto 0;width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:18px 18px calc(18px + var(--safe-b));max-height:85vh;overflow:auto}
+dialog.sheet h3{font-size:20px}
+.sheetlist{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.sheetlist button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line);background:var(--raised);border-radius:12px;padding:12px 14px;cursor:pointer;font-size:15px}
+.sheetlist button.on{border-color:var(--accent);background:var(--drop)}
+.sheetlist .sn{flex:1;min-width:0}
+.sheetlist .after{font-size:12.5px;color:var(--muted)}
+
+/* ---------- settings ---------- */
+.settings{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;padding-bottom:60px}
+.settings .hcard h3{margin-bottom:8px}
+.form{display:flex;flex-direction:column;gap:10px}
+.form label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:-6px}
+.form input{width:100%;border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:9px 11px}
+.form input:focus{outline:none;border-color:var(--accent)}
+.userrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line2);font-size:13.5px}
+.userrow .sn{flex:1;min-width:0}
+.tag{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.checktable{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.checktable th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:6px;border-bottom:1px solid var(--line)}
+.checktable td{padding:6px;border-bottom:1px solid var(--line2)}
+.checktable .r{text-align:right}
+.checktable .good{color:var(--good);font-weight:600}
+.checktable .badv{color:var(--bad);font-weight:600}
+.auditlist{font-size:12.5px;max-height:360px;overflow:auto}
+.auditlist div{padding:5px 0;border-bottom:1px solid var(--line2);color:var(--muted)}
+.auditlist b{color:var(--ink);font-weight:500}
+
+/* ---------- floating quick-add (card budget on phones) ---------- */
+.fab{display:none}
+
+/* ---------- loading ---------- */
+.loading{padding:60px 0;text-align:center;color:var(--faint);font-family:var(--serif);font-style:italic}
+.banner{background:var(--drop);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px;margin:0 0 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner .grow{flex:1}
+
+/* ---------- swipeable payoff rows (phones) ---------- */
+@media (max-width:700px){
+  :root{--tabbar:64px}
+  body{padding-bottom:calc(var(--tabbar) + var(--safe-b))}
+  header{padding:18px 0 10px}
+  .tools .tbtn.wide-only,.tools .sep{display:none}
+  .tabs.top{display:none}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:var(--safe-b);height:calc(var(--tabbar) + var(--safe-b))}
+  .tabbar button{border:none;background:none;color:var(--muted);font-size:11px;font-weight:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
+  .tabbar button svg{width:22px;height:22px}
+  .tabbar button.on{color:var(--accent)}
+  .accounts{grid-template-columns:1fr}
+  .zone{max-height:none}
+  .card{cursor:default}
+  .opts,.lopts{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;padding-bottom:8px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
+  .opts>.hcard,.opts>#hOpts>.hcard,.lopts>.lopt,.lopts>div>.lopt{flex:0 0 78%;scroll-snap-align:start}
+  #hOpts,.lopts>div{display:contents}
+  .fab{display:grid;place-items:center;position:fixed;right:18px;bottom:calc(var(--tabbar) + var(--safe-b) + 16px);z-index:45;width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:var(--accent-ink);font-size:28px;box-shadow:var(--shadow-lift);cursor:pointer}
+  .bgrid .addcard{display:none}
+  .hcard{padding:16px}
+  .settings{grid-template-columns:1fr}
+  dialog:not(.sheet){width:calc(100vw - 24px);padding:20px}
+  .gatecard{padding:22px}
+}
+@media (min-width:701px){
+  .tabbar{display:none}
+}
+.phone-only{display:none}
+@media (max-width:700px){.phone-only{display:block}}
+.addcard+.csvcard{margin-top:20px}
+@media (max-width:700px){.addcard+.csvcard{margin-top:0}}
+/* Grid columns may shrink below their content (inputs, scrolling option rows), so nothing widens the page on a phone. */
+.lgrid>*,.hgrid>*,.bgrid>*,.fields>*,.lmain,.settings>*{min-width:0}
+@media (max-width:1100px){.lgrid{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:700px){
+  .hgrid,.bgrid{grid-template-columns:minmax(0,1fr)}
+  .fields input,.fields select{min-width:0}
+  .ratebar input[type=range]{min-width:0;flex-basis:100%}
+  .btable{table-layout:auto}
+}
+@media (max-width:700px){
+  .cattable,.exptable{table-layout:fixed}
+  .cattable th:nth-child(1){width:auto}
+  .cattable th:nth-child(3){width:23%}
+  .cattable th:nth-child(4),.cattable th:nth-child(5){width:21%}
+  .cattable th:nth-child(7),.exptable th:nth-child(6){width:30px}
+  .exptable th:nth-child(1){width:52px}
+  .exptable th:nth-child(5){width:28%}
+  .btable input,.btable select{min-width:0}
+  .btable td{padding:6px 3px}
+  .cattable .minibar.phone-only{display:block;margin:3px 5px 0}
+  .btable .lim{width:100%}
+}

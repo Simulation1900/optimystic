@@ -62,14 +62,14 @@ export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean 
   if (dist && existsSync(join(dist, 'index.html'))) {
     await app.register(fastifyStatic, {
       root: dist,
-      wildcard: false,
+      cacheControl: false, // set below: hashed assets forever, everything else revalidated
       setHeaders: (res, path) => {
         if (/\/assets\//.test(path)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         else res.setHeader('Cache-Control', 'no-cache');
       }
     });
     app.setNotFoundHandler((req, reply) => {
-      if (req.url.startsWith('/api/') || req.method !== 'GET') return reply.code(404).send({ error: 'Not found.' });
+      if (req.url.startsWith('/api/') || req.url.startsWith('/assets/') || req.method !== 'GET') return reply.code(404).send({ error: 'Not found.' });
       reply.header('Cache-Control', 'no-cache');
       return reply.sendFile('index.html');
     });
