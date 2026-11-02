@@ -3,6 +3,7 @@ import { monthLabel, uid } from '@optimystic/core';
 import { api, ApiError, type User } from './api';
 import { boot, dismiss, dispatch, openMonth, serverCall, setTab, signedIn, startSync, toast, useStore, type Tab } from './store';
 import { ask, ConfirmHost, Icon } from './ui';
+import { setTheme, useTheme } from './theme';
 import { BillsTab, BillDialog, AccountDialog } from './components/Bills';
 import { LoansTab } from './components/Loans';
 import { BudgetTab } from './components/Budget';
@@ -139,6 +140,7 @@ function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void
         ) : <div className="monthnav"><h1>Bill Planner</h1></div>}
       </div>
       <div className="tools">
+        <ThemeButton />
         <span className={`syncpill ${!online ? 'offline' : saving || pending ? 'saving' : ''}`} role="status"><i />{status}</span>
         {key && tab === 'bills' && <>
           <button className="tbtn" onClick={onAddBill}>Add bill</button>
@@ -151,6 +153,19 @@ function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void
         <button className="pbtn" onClick={onNewMonth}>New month</button>
       </div>
     </header>
+  );
+}
+
+/** One tap flips between light and dark (from whatever is showing now). Settings also offers "Match this device". */
+function ThemeButton() {
+  const [, shown] = useTheme();
+  const next = shown === 'dark' ? 'light' : 'dark';
+  return (
+    <button className="iconbtn" title={`Switch to ${next} mode`} aria-label={`Switch to ${next} mode`} data-testid="theme-toggle" onClick={() => setTheme(next)}>
+      {shown === 'dark'
+        ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>}
+    </button>
   );
 }
 

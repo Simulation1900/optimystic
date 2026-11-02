@@ -195,4 +195,7 @@ Database migrations run when the app starts.
 - The database port is never published; secrets live only in `.env`.
 - Only the owner can load a backup, delete a month, replace a month with a copy, or add and remove logins.
 - Signing out clears the device's offline copy of the planner.
+
+Light and dark mode follow the device by default; the sun/moon button in the header flips them, and Settings →
+Appearance can pin Light, Dark or "Match this device" (saved per device).
 - Every change is in the audit log (Settings → Recent changes) with who made it and the before/after values.

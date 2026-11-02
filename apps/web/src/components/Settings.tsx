@@ -3,6 +3,7 @@ import { fmt, monthLabel, type MonthCheck } from '@optimystic/core';
 import { api, ApiError, type User } from '../api';
 import { flush, getState, reloadAll, signOut, toast, useStore } from '../store';
 import { ask } from '../ui';
+import { setTheme, useTheme, type Theme } from '../theme';
 
 interface ImportResult { fromFile: MonthCheck[]; fromDb: MonthCheck[]; matches: boolean; mismatches: string[]; months: string[] }
 
@@ -17,6 +18,7 @@ export function SettingsTab() {
         <Backups isOwner={user.role === 'owner'} onImported={setResult} />
         <Logins me={user} />
         <Password />
+        <Appearance />
         <Install />
         <Audit />
       </div>
@@ -186,6 +188,24 @@ function Audit() {
             {e.month_key ? ` · ${monthLabel(e.month_key)}` : ''} · {new Date(e.at).toLocaleString()}</div>
         )) : <span className="hnote">Nothing yet.</span>}
       </div>
+    </div>
+  );
+}
+
+function Appearance() {
+  const [theme] = useTheme();
+  const opts: Array<[Theme, string]> = [['system', 'Match this device'], ['light', 'Light'], ['dark', 'Dark']];
+  return (
+    <div className="hcard">
+      <h3>Appearance</h3>
+      <div className="sheetlist" role="radiogroup" aria-label="Appearance">
+        {opts.map(([t, label]) => (
+          <button key={t} type="button" role="radio" aria-checked={theme === t} className={theme === t ? 'on' : ''} onClick={() => setTheme(t)}>
+            <span className="sn">{label}</span>{theme === t && <span className="after">✓</span>}
+          </button>
+        ))}
+      </div>
+      <p className="hnote" style={{ marginTop: 10 }}>Saved on this device only, so each phone can have its own.</p>
     </div>
   );
 }

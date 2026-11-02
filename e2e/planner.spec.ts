@@ -161,3 +161,18 @@ test('quick-add suggests the category you filed a store under before', async ({ 
   await expect(form.getByLabel('Category')).toHaveValue('cat-groceries');
   await expect(form.getByTestId('cat-from-past')).toBeVisible();
 });
+
+test('light and dark mode: the header toggle and the Settings choice, remembered on this device', async ({ page }) => {
+  await seeded(page);
+  const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const light = await bg();
+  await page.getByTestId('theme-toggle').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await bg()).not.toBe(light);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await tab(page, 'Settings');
+  await page.getByRole('radio', { name: 'Match this device' }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
+  expect(await bg()).toBe(light); // the test browser's device setting is light
+});

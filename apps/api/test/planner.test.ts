@@ -204,3 +204,21 @@ describe('category memory', () => {
     expect(nov.month.budget.expenses.find((e: any) => e.date === '2026-11-20').catId).toBe('cat-groceries');
   });
 });
+
+describe('backups from the HTML planner with card expenses', () => {
+  it('import (no source field), keep their categories, and teach the category memory', async () => {
+    const b = JSON.parse(fixture('sample-backup.json'));
+    b.months['2026-11'].budget = {
+      baseline: 4537,
+      cards: [{ id: 'card-chase', name: 'Chase', billName: 'Chase Credit Bill', color: '#4f80a8' }],
+      cats: [{ id: 'cat-groceries', name: 'Groceries', limit: 100, cardId: 'card-chase' }, { id: 'cat-other', name: 'Other', limit: 50, cardId: 'card-chase' }],
+      expenses: [{ id: 'x1', date: '2026-11-03', desc: 'SAMPLE STORE #4', amount: 9, catId: 'cat-groceries', cardId: 'card-chase' }]
+    };
+    const r = await c.post('/api/import', b);
+    expect(r.statusCode).toBe(200);
+    expect(r.json().matches).toBe(true);
+    const j = (await c.get(K)).json();
+    expect(j.month.budget.expenses[0]).toMatchObject({ desc: 'SAMPLE STORE #4', catId: 'cat-groceries', source: 'manual', catChosen: true });
+    expect(j.catMemory['SAMPLE STORE']).toEqual({ catId: 'cat-groceries', catName: 'Groceries' });
+  });
+});

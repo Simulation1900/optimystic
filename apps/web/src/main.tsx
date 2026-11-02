@@ -5,6 +5,9 @@ import '@fontsource-variable/inter/index.css';
 import './planner.css';
 import './app.css';
 import { App } from './App';
+import { applyTheme } from './theme';
+
+applyTheme(); // before the first paint, so a chosen theme doesn't flash
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
 
