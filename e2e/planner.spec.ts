@@ -211,3 +211,12 @@ test('transfers: cover a short account from one with money to spare, mark it don
   await expect(page.locator('.xrow.done')).toHaveCount(0);
   await expect(page.locator('.xrow')).toContainText('Every month');
 });
+
+test('a tapped notification’s link opens the right tab', async ({ page }) => {
+  await seeded(page);
+  await page.goto('/?tab=budget');
+  await expect(page.getByTestId('budget-spent')).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto('/?tab=settings');
+  await expect(page.getByTestId('notifications')).toBeVisible();
+});

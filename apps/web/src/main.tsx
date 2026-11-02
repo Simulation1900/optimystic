@@ -6,8 +6,18 @@ import './planner.css';
 import './app.css';
 import { App } from './App';
 import { applyTheme } from './theme';
+import { setTab, type Tab } from './store';
 
 applyTheme(); // before the first paint, so a chosen theme doesn't flash
+
+// A tapped notification opens /?tab=budget (or settings): go there, then tidy the address.
+const openFromUrl = (href: string) => {
+  const t = new URL(href, location.href).searchParams.get('tab');
+  if (t && ['bills', 'loans', 'budget', 'settings'].includes(t)) setTab(t as Tab);
+};
+openFromUrl(location.href);
+if (location.search) history.replaceState(null, '', location.pathname);
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.type === 'open') openFromUrl(e.data.url); });
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
 

@@ -234,5 +234,28 @@ CREATE TABLE bank_links (
   PRIMARY KEY (connection_id, sf_account_id)
 );
 `
+  },
+  {
+    id: 5,
+    name: 'push notifications',
+    sql: `
+-- Small app-wide settings (the push notification keys live here; they're made on first use).
+CREATE TABLE app_settings (
+  key    text PRIMARY KEY,
+  value  text NOT NULL
+);
+
+-- Devices that turned on notifications.
+CREATE TABLE push_subscriptions (
+  id          serial PRIMARY KEY,
+  user_id     integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint    text NOT NULL UNIQUE,
+  p256dh      text NOT NULL,
+  auth        text NOT NULL,
+  user_agent  text NOT NULL DEFAULT '',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  last_ok_at  timestamptz
+);
+`
   }
 ];

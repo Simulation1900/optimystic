@@ -109,3 +109,18 @@ export function budgetStats(m: Month): BudgetStats {
     projected: r2(cards.reduce((t, c) => t + c.projected, 0)), actual: r2(cards.reduce((t, c) => t + c.spent, 0))
   };
 }
+
+export interface OverBudget { catId: string; name: string; spent: number; limit: number; cardName: string }
+
+/**
+ * Categories that went over their limit between two versions of a month (spent was at or under the limit before,
+ * over it after). Used for over-budget alerts, so a category alerts once when it crosses, not on every charge.
+ */
+export function newlyOverBudget(before: Month, after: Month): OverBudget[] {
+  const b = budgetStats(before), a = budgetStats(after);
+  return after.budget.cats.flatMap(k => {
+    const lim = Number(k.limit) || 0, was = b.byCat[k.id] || 0, now = a.byCat[k.id] || 0;
+    if (!(lim > 0) || !(now > lim + 0.004) || was > lim + 0.004) return [];
+    return [{ catId: k.id, name: k.name, spent: r2(now), limit: lim, cardName: after.budget.cards.find(c => c.id === k.cardId)?.name || '' }];
+  });
+}

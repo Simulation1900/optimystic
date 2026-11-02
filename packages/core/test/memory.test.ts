@@ -75,3 +75,19 @@ describe('learning and guessing', () => {
     expect(st.months[K].budget.expenses.find(e => e.date === '2026-11-20')).toMatchObject({ catId: 'cat-groceries', catChosen: false });
   });
 });
+
+import { newlyOverBudget } from '../src/index.js';
+describe('newlyOverBudget', () => {
+  it('reports a category once, when it crosses its limit', () => {
+    const m0 = sampleState().months[K];
+    const add = (m: typeof m0, id: string, amount: number) => applyOp(m, K, { type: 'expense.add', id, date: '2026-11-03', desc: 'x', amount, catId: 'cat-dining-out', cardId: 'card-chase' });
+    const m1 = structuredClone(m0); add(m1, 'a', 90);
+    expect(newlyOverBudget(m0, m1)).toEqual([]);
+    const m2 = structuredClone(m1); add(m2, 'b', 22.4);
+    expect(newlyOverBudget(m1, m2)).toEqual([{ catId: 'cat-dining-out', name: 'Dining out', spent: 112.4, limit: 100, cardName: 'Chase' }]);
+    const m3 = structuredClone(m2); add(m3, 'c', 5);
+    expect(newlyOverBudget(m2, m3)).toEqual([]);   // already over: no second alert
+    const m4 = structuredClone(m0); add(m4, 'd', 100);
+    expect(newlyOverBudget(m0, m4)).toEqual([]);   // exactly at the limit isn't over
+  });
+});

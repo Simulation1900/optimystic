@@ -4,6 +4,7 @@ import { api, ApiError, type User } from '../api';
 import { flush, getState, reloadAll, signOut, toast, useStore } from '../store';
 import { ask } from '../ui';
 import { setTheme, useTheme, type Theme } from '../theme';
+import { pushState, turnOff, turnOn, type PushState } from '../push';
 
 interface ImportResult { fromFile: MonthCheck[]; fromDb: MonthCheck[]; matches: boolean; mismatches: string[]; months: string[] }
 
@@ -18,6 +19,7 @@ export function SettingsTab() {
         <Backups isOwner={user.role === 'owner'} onImported={setResult} />
         <Logins me={user} />
         <Password />
+        <Notifications />
         <CardSync isOwner={user.role === 'owner'} />
         <Appearance />
         <Install />
@@ -278,6 +280,39 @@ function CardSync({ isOwner }: { isOwner: boolean }) {
           }}>Disconnect</button>}
         </div>
       </>}
+    </div>
+  );
+}
+
+/** Over-budget alerts on this device. */
+function Notifications() {
+  const [st, setSt] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { pushState().then(setSt).catch(() => setSt('unsupported')); }, []);
+  const act = async (f: () => Promise<PushState | void>, done?: string) => {
+    setBusy(true); setMsg('');
+    try { const r = await f(); if (r) setSt(r); if (done) setMsg(done); }
+    catch (e) { setMsg((e as Error).message || 'That didn’t work on this device.'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="hcard" data-testid="notifications">
+      <h3>Notifications</h3>
+      <p className="hnote">A notification on this device when a synced card charge puts a budget category over its limit. The owner also hears when card sync needs attention.</p>
+      <div style={{ marginTop: 12 }}>
+        {st === null && <p className="hnote">Checking…</p>}
+        {st === 'needs-home-screen' && <p className="hwarn">On iPhone, notifications only work in the home-screen app: Share → Add to Home Screen, open it from there, then come back here (iOS 16.4 or later).</p>}
+        {st === 'unsupported' && <p className="hwarn">This browser can’t receive notifications. They need the app’s HTTPS address and a current browser.</p>}
+        {st === 'blocked' && <p className="hwarn">Notifications are blocked for this site. Allow them in the phone’s or browser’s settings for this app, then reload.</p>}
+        {st === 'off' && <button className="pbtn" style={{ marginLeft: 0 }} disabled={busy} onClick={() => act(turnOn, 'Notifications are on for this device.')}>{busy ? 'One moment…' : 'Turn on for this device'}</button>}
+        {st === 'on' && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="ok">✓ On for this device</span>
+          <button className="mini" disabled={busy} onClick={() => act(async () => { await api('POST', '/api/push/test'); }, 'Test sent. It should arrive in a few seconds.')}>Send a test</button>
+          <button className="tbtn" disabled={busy} onClick={() => act(turnOff, 'Notifications are off for this device.')}>Turn off</button>
+        </div>}
+        {msg && <p className="hnote" style={{ marginTop: 8 }} role="status">{msg}</p>}
+      </div>
     </div>
   );
 }

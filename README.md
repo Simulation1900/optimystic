@@ -186,6 +186,15 @@ than added, and two identical real charges stay two. When SimpleFIN reports a pr
 in again, a revoked connection) the Card budget tab and Settings show it; nothing else changes and CSV import still
 works. Disconnect deletes the saved connection; revoke it in the SimpleFIN Bridge dashboard too.
 
+### Over-budget alerts
+
+Each phone turns them on in Settings → Notifications (there's a Send a test button). When a card sync puts a
+budget category over its limit in the working month, every device with notifications on gets one alert ("Dining out
+is over budget: $112.40 of $100.00"); a category alerts once when it crosses, not on every charge after. The owner's
+devices also hear when card sync starts having a problem. On iPhone this needs the home-screen app (iOS 16.4+).
+The keys for this are created automatically and kept in the database; the box needs outbound internet to reach
+Apple's and Google's push services.
+
 ## Backups and restore
 
 - The `backup` container dumps the database nightly to `/DATA/AppData/bill-planner/backups` (30 days kept) and

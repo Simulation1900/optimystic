@@ -1,11 +1,12 @@
 // Card sync: pull the two credit cards' charges from SimpleFIN into the card budget.
 import type { FastifyInstance } from 'fastify';
-import { addMonths, cardItems, clone, importSynced, syncMessage, todayISO, type Month, type SyncResult } from '@optimystic/core';
+import { addMonths, cardItems, clone, fmt, importSynced, newlyOverBudget, syncMessage, todayISO, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
 import { tx, type Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
 import { categoryMemory, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
 import { claim, decrypt, encrypt, fetchAccounts, SyncError } from './simplefin.js';
+import { sendPush } from './push.js';
 
 const LOOKBACK_DAYS = 10; // late-posting charges are caught on the next runs
 
@@ -59,6 +60,7 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
     const links = (await db.query('SELECT sf_account_id, card_key FROM bank_links WHERE connection_id = $1 AND card_key IS NOT NULL', [conn.id])).rows;
 
     const total: SyncResult & { pending: number } = { added: 0, matched: 0, already: 0, skipped: 0, months: [], pending: 0 };
+    const over: OverBudget[] = [];
     await tx(db, async c => {
       const all = await listMonths(c);
       const current = todayISO(cfg.tz).slice(0, 7);
@@ -78,7 +80,11 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
         for (const k of keys) before[k] = (await loadMonth(c, k))!;
         const after = clone(before);
         const r = importSynced(after, items, l.card_key, template ? after[template] : undefined, undefined, await categoryMemory(c));
-        for (const k of keys) await saveMonth(c, k, before[k], after[k], userId, 'card-sync');
+        for (const k of keys) {
+          // Over-budget alerts only for the working month (this month, or the latest one): an old month isn't news.
+          if (k === template) over.push(...newlyOverBudget(before[k], after[k]).filter(o => !over.some(x => x.catId === o.catId)));
+          await saveMonth(c, k, before[k], after[k], userId, 'card-sync');
+        }
         total.added += r.added; total.matched += r.matched; total.already += r.already; total.skipped += r.skipped;
         total.months = [...new Set([...total.months, ...r.months])].sort();
       }
@@ -87,12 +93,31 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
     // SimpleFIN reports bank problems (like a login that needs fixing) in `errors` while still returning what it can.
     const err = data.errors.length ? `SimpleFIN: ${data.errors.join(' ')}` : (!links.length ? 'No card is linked yet. Choose which SimpleFIN account is which card.' : null);
     await db.query('UPDATE bank_connections SET last_sync_at = now(), last_error = $2, last_result = $3 WHERE id = $1', [conn.id, err, JSON.stringify(result)]);
+    await alertOverBudget(db, cfg, over);
+    if (err && err !== conn.last_error && data.errors.length) await alertSyncProblem(db, cfg, err);
   } catch (e) {
     const msg = e instanceof SyncError ? e.message : 'Card sync failed on the server.';
     await db.query('UPDATE bank_connections SET last_error = $2 WHERE id = $1', [conn.id, msg]);
+    if (msg !== conn.last_error) await alertSyncProblem(db, cfg, msg);
     if (!(e instanceof SyncError)) throw e;
   }
   return syncStatus(db, cfg);
+}
+
+/** One notification per category that a synced charge just put over its limit. Push failures never fail a sync. */
+async function alertOverBudget(db: Db, cfg: Config, over: OverBudget[]) {
+  for (const o of over) {
+    await sendPush(db, cfg, {
+      title: `${o.name} is over budget`,
+      body: `${fmt(o.spent)} of ${fmt(o.limit)} this month${o.cardName ? ` (${o.cardName})` : ''}.`,
+      tag: `over-${o.catId}`, url: '/?tab=budget'
+    }).catch(() => 0);
+  }
+}
+
+/** Tell the owner once when card sync starts having a problem (not again until the message changes). */
+async function alertSyncProblem(db: Db, cfg: Config, msg: string) {
+  await sendPush(db, cfg, { title: 'Card sync needs attention', body: msg, tag: 'sync-problem', url: '/?tab=settings' }, { ownersOnly: true }).catch(() => 0);
 }
 
 export function registerSync(app: FastifyInstance, db: Db, cfg: Config) {
