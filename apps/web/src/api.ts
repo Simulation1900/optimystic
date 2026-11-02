@@ -12,6 +12,8 @@ export interface MonthPayload {
   catMemory?: CategoryMemory;
   /** Card sync (SimpleFIN) at a glance. */
   sync?: { connected: boolean; lastSyncAt: string | null; lastError: string | null };
+  /** Pending card charges from the latest sync dated this month: shown, not counted until they post. */
+  pending?: Array<{ id: string; cardId: string; date: string; desc: string; amount: number }>;
 }
 
 export class ApiError extends Error {

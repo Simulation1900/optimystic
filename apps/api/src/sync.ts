@@ -68,8 +68,13 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
       for (const l of links) {
         const acct = data.accounts.find(a => String(a.id) === l.sf_account_id);
         if (!acct) continue;
-        const { items, pending } = cardItems(acct.transactions || [], cfg.tz);
+        const { items, pending, pendingItems } = cardItems(acct.transactions || [], cfg.tz);
         total.pending += pending;
+        await c.query('DELETE FROM card_pending WHERE connection_id = $1 AND card_key = $2', [conn.id, l.card_key]);
+        for (const p of pendingItems) {
+          await c.query('INSERT INTO card_pending (connection_id, id, card_key, date, description, amount) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING',
+            [conn.id, p.id, l.card_key, p.date, p.desc.slice(0, 200), p.amount]);
+        }
         if (!items.length) continue;
         // The months the charges fall in, plus their neighbours (a CSV line can sit a few days away).
         const keys = new Set<string>();
@@ -160,7 +165,9 @@ export function registerSync(app: FastifyInstance, db: Db, cfg: Config) {
     for (const k of await listMonths(db)) (await loadMonth(db, k))!.budget.cards.forEach(c => cards.add(c.id));
     for (const [sf, card] of Object.entries(links)) {
       if (card && !cards.has(card)) return reply.code(400).send({ error: 'That card isn’t in the planner.' });
+      const old = (await db.query('SELECT card_key FROM bank_links WHERE connection_id = $1 AND sf_account_id = $2', [conn.id, sf])).rows[0]?.card_key;
       await db.query('UPDATE bank_links SET card_key = $3 WHERE connection_id = $1 AND sf_account_id = $2', [conn.id, sf, card || null]);
+      if (old && old !== card) await db.query('DELETE FROM card_pending WHERE connection_id = $1 AND card_key = $2', [conn.id, old]);
     }
     return syncStatus(db, cfg);
   });

@@ -32,18 +32,20 @@ export const isoInZone = (epoch: number, tz = 'America/Chicago'): string => {
  * purchases come out positive and returns negative (like the CSV import). Filed by transaction date when the
  * bank gives one (that's what the CSV import uses), else the posting date.
  */
-export function cardItems(txns: SfTransaction[], tz?: string): { items: SyncItem[]; pending: number; payments: number } {
-  let pending = 0, payments = 0;
-  const items: SyncItem[] = [];
+export function cardItems(txns: SfTransaction[], tz?: string, now = Date.now() / 1000):
+  { items: SyncItem[]; pending: number; payments: number; pendingItems: SyncItem[] } {
+  let payments = 0;
+  const items: SyncItem[] = [], pendingItems: SyncItem[] = [];
   for (const t of txns) {
-    if (t.pending || !t.posted) { pending++; continue; }
     const raw = Number(t.amount) || 0;
     const desc = String(t.description || t.payee || '').trim();
     if (!raw || !desc) continue;
-    if (PAY.test(desc) || (raw > 0 && /\bPAYMENT\b/i.test(desc))) { payments++; continue; }
-    items.push({ id: String(t.id), date: isoInZone(t.transacted_at || t.posted, tz), desc, amount: r2(-raw) });
+    if (PAY.test(desc) || (raw > 0 && /\bPAYMENT\b/i.test(desc))) { if (!(t.pending || !t.posted)) payments++; continue; }
+    const item = { id: String(t.id), date: isoInZone(t.transacted_at || t.posted || now, tz), desc, amount: r2(-raw) };
+    // Pending charges are shown but not filed: their id and amount often change when they post.
+    if (t.pending || !t.posted) pendingItems.push(item); else items.push(item);
   }
-  return { items, pending, payments };
+  return { items, pending: pendingItems.length, payments, pendingItems };
 }
 
 const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 86400000;

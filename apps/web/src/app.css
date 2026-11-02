@@ -141,3 +141,5 @@ dialog.sheet h3{font-size:20px}
 .bsum{margin-top:12px}
 .userrow select{border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:7px 9px;max-width:48%}
 .userrow select:focus{outline:none;border-color:var(--accent)}
+.pendrow td{color:var(--muted);font-style:italic}
+.pendrow .tag{font-style:normal;margin-left:6px}

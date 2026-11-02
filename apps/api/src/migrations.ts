@@ -257,5 +257,21 @@ CREATE TABLE push_subscriptions (
   last_ok_at  timestamptz
 );
 `
+  },
+  {
+    id: 6,
+    name: 'pending card charges',
+    sql: `
+-- Pending charges from the latest card sync: shown, not counted. Replaced on every sync.
+CREATE TABLE card_pending (
+  connection_id  integer NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+  id             text NOT NULL,
+  card_key       text NOT NULL,
+  date           date NOT NULL,
+  description    text NOT NULL,
+  amount         numeric(12,2) NOT NULL,
+  PRIMARY KEY (connection_id, card_key, id)
+);
+`
   }
 ];

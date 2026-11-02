@@ -83,7 +83,7 @@ describe('card sync (SimpleFIN)', () => {
       'ACT-chase': [
         { id: 'c1', posted: day('2026-11-05'), transacted_at: day('2026-11-04'), amount: '-82.15', description: 'KROGER #100' },   // already in the CSV
         { id: 'c2', posted: day('2026-11-06'), transacted_at: day('2026-11-05'), amount: '-19.99', description: 'NETFLIX.COM' },   // new
-        { id: 'c3', posted: 0, amount: '-7.00', description: 'PENDING CAFE', pending: true },
+        { id: 'c3', posted: 0, transacted_at: day('2026-11-06'), amount: '-7.00', description: 'PENDING CAFE', pending: true },
         { id: 'c4', posted: day('2026-11-06'), amount: '500.00', description: 'Payment Thank You-Mobile' }
       ],
       'ACT-boa': [{ id: 'b1', posted: day('2026-11-07'), transacted_at: day('2026-11-06'), amount: '-45.10', description: 'KROGER #12' }]
@@ -100,10 +100,14 @@ describe('card sync (SimpleFIN)', () => {
     expect(nov.month.budget.expenses.find((e: any) => e.desc === 'KROGER #100')).toMatchObject({ source: 'csv', externalId: 'c1' });
     expect(nov.month.budget.expenses.some((e: any) => /SHOULD NOT APPEAR|PENDING|Payment/.test(e.desc))).toBe(false);
     expect(nov.sync).toMatchObject({ connected: true, lastError: null });
+    // the pending charge is shown with the month, but isn't in any total
+    expect(nov.pending).toEqual([{ id: 'c3', cardId: 'card-chase', date: '2026-11-06', desc: 'PENDING CAFE', amount: 7 }]);
+    expect(nov.month.budget.expenses.some((e: any) => e.desc === 'PENDING CAFE')).toBe(false);
     // the pending charge posts: it comes in once, and nothing else doubles
     (txns['ACT-chase'] as any[])[2] = { id: 'c3', posted: day('2026-11-07'), transacted_at: day('2026-11-06'), amount: '-7.00', description: 'PENDING CAFE' };
     s = (await c.post('/api/sync/run')).json();
     expect(s.lastResult).toMatchObject({ added: 1, already: 3, matched: 0 });
+    expect((await c.get('/api/months/2026-11')).json().pending).toEqual([]);
     // and the CSV can be imported again without doubling the synced charge
     expect((await c.post('/api/budget/import', { card: 'card-chase', csv: fixture('sample-card-activity.csv'), month: '2026-11' })).json().added).toBe(0);
   });

@@ -13,7 +13,8 @@ test.beforeAll(async () => {
       res.end(JSON.stringify({ errors: [], accounts: [
         { id: 'A1', name: 'Chase Sapphire', org: { name: 'Chase' }, balance: '-120.00', transactions: [
           { id: 't1', posted: day('2026-11-04'), transacted_at: day('2026-11-03'), amount: '-19.99', description: 'NETFLIX.COM' },
-          { id: 't2', posted: day('2026-11-05'), transacted_at: day('2026-11-04'), amount: '-100.01', description: 'KROGER #77' }
+          { id: 't2', posted: day('2026-11-05'), transacted_at: day('2026-11-04'), amount: '-100.01', description: 'KROGER #77' },
+          { id: 't3', posted: 0, pending: true, transacted_at: day('2026-11-06'), amount: '-8.25', description: 'COFFEE SHOP' }
         ] },
         { id: 'A2', name: 'BoA Visa', org: { name: 'Bank of America' }, balance: '0', transactions: [] }
       ] }));
@@ -35,10 +36,12 @@ test('connect card sync, link the cards, and see the charges in the card budget'
   await card.getByLabel('Chase Sapphire card').selectOption('card-chase');
   await expect(card.getByLabel('Chase Sapphire card')).toHaveValue('card-chase');
   await card.getByRole('button', { name: 'Sync now' }).click();
-  await expect(card.getByTestId('sync-result')).toHaveText('Added 2 charges to November 2026.');
+  await expect(card.getByTestId('sync-result')).toHaveText('Added 2 charges to November 2026. 1 pending charge will come in once posted.');
   await tab(page, 'Card');
   await expect(page.getByTestId('sync-line')).toContainText('Cards synced');
   await expect(page.getByTestId('budget-spent')).toHaveText('$120.00');
+  await expect(page.getByTestId('pending-total')).toHaveText('+$8.25 pending');
+  await expect(page.getByTestId('pending-row')).toContainText('COFFEE SHOP');
   await page.getByTestId('sync-line').getByRole('button', { name: 'Sync now' }).click();
   await expect(page.locator('.toast')).toContainText('No new charges.');
   await expect(page.getByTestId('budget-spent')).toHaveText('$120.00');

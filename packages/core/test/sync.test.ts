@@ -28,6 +28,7 @@ describe('card sync', () => {
     ]);
     expect(r).toEqual({
       pending: 1, payments: 1,
+      pendingItems: [{ id: 'd', date: '2026-10-23', desc: 'SHELL OIL 1', amount: 20 }],
       items: [
         { id: 'a', date: '2026-10-20', desc: 'KROGER #884', amount: 133.72 },
         { id: 'b', date: '2026-10-21', desc: 'Amazon.com', amount: -38.37 },

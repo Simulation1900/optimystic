@@ -12,6 +12,8 @@ export function BudgetTab() {
   const b = month.budget, pace = monthPace(key, today);
   const saving = r2((Number(b.baseline) || 0) - st.projected);
   const [quick, setQuick] = useState(false);
+  const pending = useStore(s => (s.server?.key === key ? s.server.pending : undefined)) || [];
+  const pendingTotal = r2(pending.reduce((t, p) => t + p.amount, 0));
   return (
     <section id="budget">
       <div className="hhead">
@@ -20,7 +22,7 @@ export function BudgetTab() {
       </div>
       <SyncLine />
       <div className="bsum">
-        <div className="stat"><div className="k">Spent this month</div><div className="v num" data-testid="budget-spent">{fmt(st.spent)}</div><div className="sub">{b.expenses.length} expenses</div></div>
+        <div className="stat"><div className="k">Spent this month</div><div className="v num" data-testid="budget-spent">{fmt(st.spent)}</div><div className="sub">{b.expenses.length} expenses{pendingTotal ? <> · <span data-testid="pending-total">+{fmt(pendingTotal)} pending</span></> : null}</div></div>
         <div className="stat"><div className="k">Budget</div><div className="v num">{fmt(st.limit)}</div><div className="sub">{b.cats.length} categories</div></div>
         <div className="stat"><div className="k">Left to spend</div><div className={`v num ${st.left < 0 ? 'neg' : ''}`}>{fmt(st.left)}</div>
           <div className="sub">{pace > 0 && pace < 1 ? Math.round(pace * 100) + '% of the month gone' : pace >= 1 ? 'month is over' : 'month hasn’t started'}</div></div>
@@ -223,6 +225,18 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
       <td><button className="x" title="Delete expense" aria-label={`Delete ${e.desc}`} onClick={() => run(() => dispatch({ type: 'expense.remove', id: e.id, version: e.version }))}>×</button></td>
     </tr>
   );
+  const pend = (useStore(s => (s.server?.key === mkey ? s.server.pending : undefined)) || []).filter(p => !fCard || p.cardId === fCard);
+  const cardName = (id: string) => b.cards.find(c => c.id === id)?.name || '';
+  // Pending charges sit on top, greyed: not in any total until they post (their id and amount can change).
+  const pendRows = fCat ? [] : pend.map(p => (
+    <tr key={'p' + p.id} className="pendrow" data-testid="pending-row">
+      <td className="num">{shortDate(p.date)}</td>
+      <td>{p.desc} <span className="tag">Pending</span></td>
+      <td className="hide-sm hnote">not counted yet</td>
+      <td className="hide-sm">{cardName(p.cardId)}</td>
+      <td className="r num">{fmt(p.amount)}</td><td />
+    </tr>
+  ));
   let body;
   if (!ex.length) body = <tr><td colSpan={6} className="hnote" style={{ padding: '18px 6px' }}>No expenses {b.expenses.length ? 'match the filter' : `logged for ${monthLabel(mkey)} yet`}.</td></tr>;
   else if (group === 'date') body = ex.map(row);
@@ -244,7 +258,7 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
           <select aria-label="Filter by category" value={fCat} onChange={e => setFCat(e.target.value)}><option value="">All categories</option>{b.cats.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
           <select aria-label="Filter by card" value={fCard} onChange={e => setFCard(e.target.value)}><option value="">All cards</option>{b.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
         </div></div>
-      <div className="bscroll"><table className="btable exptable"><thead><tr><th>Date</th><th>Description</th><th className="hide-sm">Category</th><th className="hide-sm">Card</th><th className="r">Amount</th><th /></tr></thead><tbody>{body}</tbody></table></div>
+      <div className="bscroll"><table className="btable exptable"><thead><tr><th>Date</th><th>Description</th><th className="hide-sm">Category</th><th className="hide-sm">Card</th><th className="r">Amount</th><th /></tr></thead><tbody>{pendRows}{body}</tbody></table></div>
     </div>
   );
 }

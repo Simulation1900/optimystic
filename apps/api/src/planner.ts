@@ -15,6 +15,13 @@ async function syncSummary(c: Tx | Db) {
   return r ? { connected: true, lastSyncAt: r.last_sync_at ? new Date(r.last_sync_at).toISOString() : null, lastError: r.last_error as string | null } : { connected: false, lastSyncAt: null, lastError: null };
 }
 
+/** Pending card charges from the latest sync that fall in this month (shown, not counted). */
+async function pendingFor(c: Tx | Db, key: string) {
+  const r = await c.query(`SELECT id, card_key, to_char(date, 'YYYY-MM-DD') AS date, description, amount FROM card_pending
+    WHERE to_char(date, 'YYYY-MM') = $1 ORDER BY date DESC, description`, [key]);
+  return r.rows.map(x => ({ id: x.id as string, cardId: x.card_key as string, date: x.date as string, desc: x.description as string, amount: Number(x.amount) }));
+}
+
 class HttpError extends Error {
   constructor(public status: number, message: string, public extra: Record<string, unknown> = {}) { super(message); }
 }
@@ -32,7 +39,8 @@ export async function monthPayload(c: Tx | Db, key: string, m?: Month) {
     budget: budgetStats(month),
     heloc: { thisMonth: h.thisMonth, io: h.io, repayPmt: h.repayPmt, shortfall: shortfalls(month).reduce((t, x) => t + x.need, 0) },
     catMemory: await categoryMemory(c),
-    sync: await syncSummary(c)
+    sync: await syncSummary(c),
+    pending: await pendingFor(c, key)
   };
 }
 
