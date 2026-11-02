@@ -66,7 +66,7 @@ function TransferDialog({ transfer: t, preset, onClose }: { transfer: Transfer |
     <Modal onClose={onClose} label={t ? 'Edit transfer' : 'New transfer'}>
       <form onSubmit={submit}>
         <h3>{t ? 'Edit transfer' : 'Move money between accounts'}</h3>
-        <p className="lede">Counts against the “from” account and adds to the “to” account’s left after bills. Balances stay as the bank shows them; tick it done once it’s made.</p>
+        <p className="lede">Counts against the “from” account and adds to the “to” account’s ending balance. Balances stay as the bank shows them; tick it done once it’s made.</p>
         <div className="two">
           <div><label htmlFor="tFrom">From</label>
             <select id="tFrom" value={fromId} onChange={e => setFrom(e.target.value)}>{accts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
@@ -77,8 +77,8 @@ function TransferDialog({ transfer: t, preset, onClose }: { transfer: Transfer |
         <input id="tAmt" type="text" inputMode="decimal" placeholder="0.00" required value={amount} onChange={e => setAmount(e.target.value)} autoFocus={!t && !preset.amount} />
         {fromId && toId && fromId !== toId && amt > 0 && (
           <p className="lede num" data-testid="transfer-preview" style={{ marginTop: 8 }}>
-            Afterwards: {accts.find(a => a.id === fromId)?.name} <b className={leftOf(fromId) < 0 ? 'neg' : ''}>{fmt(leftOf(fromId))}</b> left ·{' '}
-            {accts.find(a => a.id === toId)?.name} <b className={leftOf(toId) < 0 ? 'neg' : ''}>{fmt(leftOf(toId))}</b> left
+            Ending balances: {accts.find(a => a.id === fromId)?.name} <b className={leftOf(fromId) < 0 ? 'neg' : ''}>{fmt(leftOf(fromId))}</b> ·{' '}
+            {accts.find(a => a.id === toId)?.name} <b className={leftOf(toId) < 0 ? 'neg' : ''}>{fmt(leftOf(toId))}</b>
           </p>
         )}
         {fromId === toId && <p className="hwarn">Pick two different accounts.</p>}

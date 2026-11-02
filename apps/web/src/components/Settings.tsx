@@ -62,7 +62,7 @@ function ImportCheck({ r, onClose }: { r: ImportResult; onClose: () => void }) {
   r.fromFile.forEach((f, i) => {
     const d = r.fromDb[i];
     const m = monthLabel(f.key);
-    f.accounts.forEach((a, j) => rows.push([`${m} · ${a.name} left after bills`, a.left, d?.accounts[j]?.left]));
+    f.accounts.forEach((a, j) => rows.push([`${m} · ${a.name} ending balance`, a.left, d?.accounts[j]?.left]));
     rows.push([`${m} · Household left over`, f.householdLeft, d?.householdLeft]);
     f.loans.forEach((l, j) => rows.push([`${m} · ${l.name} balance`, l.balance, d?.loans[j]?.balance]));
     rows.push([`${m} · HELOC balance`, f.helocBalance, d?.helocBalance]);

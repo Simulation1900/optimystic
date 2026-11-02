@@ -176,7 +176,9 @@ describe('rule 9 and 10: new month', () => {
     applyOp(m, K, { type: 'heloc.draw', id: 'd1', acctId: 'sav1', amount: 600 });
     applyOp(m, K, { type: 'expense.add', id: 'e1', date: '2026-11-03', desc: 'KROGER', amount: 50, catId: 'cat-groceries', cardId: 'card-boa' });
     const nm = buildNewMonth(m, { balances: 'forecast', cardBills: 'keep', copyOneTime: false }, seqId);
+    // starting balance = last month's ending balance; saved deposits come along unchanged
     expect(nm.accounts.map(a => a.balance)).toEqual([1321.76, 470.37, 0]);
+    expect(nm.accounts.map(a => a.deposit)).toEqual([1500, 2000, 0]);
     expect(nm.bills.some(b => b.name === 'Birthday gift')).toBe(false);
     expect(nm.bills.every(b => !b.paid && !b.loanApplied && !b.helocApplied)).toBe(true);
     expect(nm.loans.find(l => l.id === 'mortgage')!.balance).toBe(215531.12);

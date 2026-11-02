@@ -99,12 +99,12 @@ function Column({ month, account: a, dnd }: { month: Month; account: Account | n
             <span className="lbl">Not marked paid</span><span>{fmt(s.due)}</span>
             {s.xferIn > 0 && <><span className="lbl">Transfers in</span><span className="pos" data-testid={`xin-${a.id}`}>+{fmt(s.xferIn)}</span></>}
             {s.xferOut > 0 && <><span className="lbl">Transfers out</span><span data-testid={`xout-${a.id}`}>−{fmt(s.xferOut)}</span></>}
-            <span className="leftlbl">Left after bills</span><span className={`left ${s.left < 0 ? 'neg' : 'pos'}`} data-testid={`left-${a.id}`}>{fmt(s.left)}</span>
+            <span className="leftlbl">Ending balance</span><span className={`left ${s.left < 0 ? 'neg' : 'pos'}`} data-testid={`left-${a.id}`}>{fmt(s.left)}</span>
           </div>
           {s.left < 0 && month.accounts.length > 1 && (
             <button type="button" className="linkbtn covertx" onClick={() => coverWithTransfer(month, a.id, r2(-s.left))}>Cover {fmt(-s.left)} with a transfer</button>
           )}
-          <div className="preview">{preview !== null ? `After drop: ${fmt(preview)} left` : ''}</div>
+          <div className="preview">{preview !== null ? `After drop: ${fmt(preview)} ending balance` : ''}</div>
         </>
       ) : (
         <div className="poolhead"><h2>Unassigned</h2><span className="count num">{list.length ? `${list.length} · ${fmt(sum(list))}` : ''}</span></div>
@@ -167,7 +167,7 @@ function MoveSheet({ bill: b, month, onClose }: { bill: Bill; month: Month; onCl
             <button key={a.id} type="button" className={cur ? 'on' : ''} onClick={() => pick(a.id)}>
               <span className="dot" style={{ background: a.color }} />
               <span className="sn">{a.name}</span>
-              <span className={`after num ${after !== null && after < 0 ? 'neg' : ''}`}>{cur ? 'Here now' : after !== null ? `${fmt(after)} left after` : ''}</span>
+              <span className={`after num ${after !== null && after < 0 ? 'neg' : ''}`}>{cur ? 'Here now' : after !== null ? `${fmt(after)} ending` : ''}</span>
             </button>
           );
         })}

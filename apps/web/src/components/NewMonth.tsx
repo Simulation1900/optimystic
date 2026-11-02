@@ -57,11 +57,11 @@ export function NewMonthDialog({ onClose }: { onClose: () => void }) {
         {months.length > 0 && <>
           <label htmlFor="nmBal">Starting balances</label>
           <select id="nmBal" value={balances} onChange={e => setBalances(e.target.value)}>
-            <option value="forecast">Forecast: what’s left after bills + deposits</option>
+            <option value="forecast">Ending balances: each account’s ending balance this month</option>
             <option value="same">Same as the month I’m copying</option>
             <option value="zero">Start at $0 (I’ll type them in)</option>
           </select>
-          <p className="lede" style={{ marginTop: 8 }}>Monthly deposits and the HELOC details carry over too.</p>
+          <p className="lede" style={{ marginTop: 8 }}>Each account’s saved monthly deposits, monthly transfers and the HELOC details carry over too.</p>
           <label htmlFor="nmCards">Credit card bills</label>
           <select id="nmCards" value={cards} onChange={e => setCards(e.target.value)}>
             <option value="projected">Projected: spent so far + what’s left in each budget category</option>

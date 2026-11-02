@@ -28,7 +28,7 @@ connection comes back.
 These are the rules from the HTML planner, implemented in `packages/core` and tested in
 `packages/core/test/rules.test.ts`:
 
-1. **Account math.** Left after bills = balance + monthly deposit − every bill on that account, paid or not,
+1. **Account math.** Ending balance (the HTML planner's "left after bills") = starting balance + monthly deposit − every bill on that account, paid or not,
    + transfers in − transfers out.
    Household left over = all balances + all deposits − all bills.
 2. **Paid is a marker.** Checking a bill paid never changes an account balance.
@@ -46,7 +46,7 @@ These are the rules from the HTML planner, implemented in `packages/core` and te
    balance, with the value changing by its yearly percentage. A contract check compares the balance with the
    original schedule.
 9. **New month.** Copies recurring bills, all unpaid (one-time expenses only if asked). Starting balances:
-   forecast, same, or $0. Loans and HELOC carry their balances; HELOC draws and card expenses start empty.
+   last month's ending balance (default), same, or $0; saved monthly deposits carry over. Loans and HELOC carry their balances; HELOC draws and card expenses start empty.
 10. **Card bills.** On a new month each card's linked bill becomes projected spending (spent + unspent limits of
     that card's categories), actual spending, or is left alone.
 11. **Card budget.** Calendar months. A category's spent = its expenses (returns negative). A card's spent = the

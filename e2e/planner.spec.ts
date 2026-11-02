@@ -185,7 +185,7 @@ test('transfers: cover a short account from one with money to spare, mark it don
   await expect(dlg.getByLabel('From')).toHaveValue('chk1');
   await expect(dlg.getByLabel('To')).toHaveValue('sav1');
   await expect(dlg.getByLabel('Amount')).toHaveValue('600.00');
-  await expect(dlg.getByTestId('transfer-preview')).toContainText('Sample Checking $721.76 left · Savings $0.00 left');
+  await expect(dlg.getByTestId('transfer-preview')).toContainText('Ending balances: Sample Checking $721.76 · Savings $0.00');
   await dlg.getByLabel('Every month').check();
   await dlg.getByRole('button', { name: 'Add transfer' }).click();
   await expect(page.getByTestId('left-sav1')).toHaveText('$0.00');
