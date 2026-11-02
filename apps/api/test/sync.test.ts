@@ -130,3 +130,22 @@ describe('card sync (SimpleFIN)', () => {
     expect((await c.post('/api/sync/run')).statusCode).toBe(404);
   });
 });
+
+describe('card sync before the planner’s first month', () => {
+  it('leaves older charges out quietly and only calls a real gap “skipped”', async () => {
+    const ctx = await start({ SYNC_KEY: 'k'.repeat(64), SIMPLEFIN_ALLOW_HTTP: '1', SYNC_TIMES: '' });
+    const c = await withSample(ctx);   // the planner starts at November 2026
+    claimed = false; revoked = false; errors = [];
+    txns = { 'ACT-chase': [
+      { id: 'o1', posted: day('2026-10-25'), transacted_at: day('2026-10-24'), amount: '-10.00', description: 'OCTOBER CHARGE' },
+      { id: 'o2', posted: day('2026-10-30'), transacted_at: day('2026-10-29'), amount: '-11.00', description: 'OCTOBER CHARGE 2' },
+      { id: 'n1', posted: day('2026-11-02'), transacted_at: day('2026-11-01'), amount: '-12.00', description: 'NOVEMBER CHARGE' }
+    ] };
+    await c.post('/api/sync/connect', { token: token() });
+    await c.post('/api/sync/links', { links: { 'ACT-chase': 'card-chase' } });
+    const s = (await c.post('/api/sync/run')).json();
+    expect(s.lastResult).toMatchObject({ added: 1, skipped: 0, older: 2 });
+    expect(s.lastResult.message).toBe('Added 1 charge to November 2026. 2 older charges from before the planner’s first month left out.');
+    await stop(ctx);
+  });
+});

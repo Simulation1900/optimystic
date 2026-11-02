@@ -59,7 +59,7 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
     }
     const links = (await db.query('SELECT sf_account_id, card_key FROM bank_links WHERE connection_id = $1 AND card_key IS NOT NULL', [conn.id])).rows;
 
-    const total: SyncResult & { pending: number } = { added: 0, matched: 0, already: 0, skipped: 0, months: [], pending: 0 };
+    const total: SyncResult & { pending: number } = { added: 0, matched: 0, already: 0, skipped: 0, older: 0, months: [], pending: 0 };
     const over: OverBudget[] = [];
     await tx(db, async c => {
       const all = await listMonths(c);
@@ -79,13 +79,13 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
         const before: Record<string, Month> = {};
         for (const k of keys) before[k] = (await loadMonth(c, k))!;
         const after = clone(before);
-        const r = importSynced(after, items, l.card_key, template ? after[template] : undefined, undefined, await categoryMemory(c));
+        const r = importSynced(after, items, l.card_key, template ? after[template] : undefined, undefined, await categoryMemory(c), all[0]);
         for (const k of keys) {
           // Over-budget alerts only for the working month (this month, or the latest one): an old month isn't news.
           if (k === template) over.push(...newlyOverBudget(before[k], after[k]).filter(o => !over.some(x => x.catId === o.catId)));
           await saveMonth(c, k, before[k], after[k], userId, 'card-sync');
         }
-        total.added += r.added; total.matched += r.matched; total.already += r.already; total.skipped += r.skipped;
+        total.added += r.added; total.matched += r.matched; total.already += r.already; total.skipped += r.skipped; total.older = (total.older || 0) + (r.older || 0);
         total.months = [...new Set([...total.months, ...r.months])].sort();
       }
     });

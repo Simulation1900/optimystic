@@ -48,7 +48,14 @@ export function cardItems(txns: SfTransaction[], tz?: string): { items: SyncItem
 
 const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 86400000;
 
-export interface SyncResult { added: number; matched: number; already: number; skipped: number; months: string[] }
+export interface SyncResult {
+  added: number; matched: number; already: number;
+  /** Dated in a month the planner doesn't have, after its first month (a gap, or a month not started yet). */
+  skipped: number;
+  /** Dated before the planner's first month: older than anything tracked, so left out quietly. */
+  older?: number;
+  months: string[];
+}
 
 /**
  * File synced items. A transaction already synced (same bank id) is left alone. One already brought in by CSV
@@ -57,14 +64,15 @@ export interface SyncResult { added: number; matched: number; already: number; s
  * the planner doesn't have are skipped and counted.
  */
 export function importSynced(months: Record<string, Month>, items: SyncItem[], cardId: string, template: Month | undefined,
-  newId: () => string = uid, memory?: CategoryMemory): SyncResult {
+  newId: () => string = uid, memory?: CategoryMemory, firstMonth?: string): SyncResult {
   const all = () => Object.values(months).flatMap(m => m.budget.expenses);
-  let added = 0, matched = 0, already = 0, skipped = 0;
+  let added = 0, matched = 0, already = 0, skipped = 0, older = 0;
   const touched = new Set<string>();
+  const first = firstMonth || Object.keys(months).sort()[0];
   for (const i of items) {
     if (all().some(e => e.externalId === i.id)) { already++; continue; }
     const m = months[i.date.slice(0, 7)];
-    if (!m) { skipped++; continue; }
+    if (!m) { if (first && i.date.slice(0, 7) < first) older++; else skipped++; continue; }
     const key = merchantKey(i.desc);
     const twin = all().find(e => !e.externalId && e.cardId === cardId && Math.round(e.amount * 100) === Math.round(i.amount * 100)
       && dayDiff(e.date, i.date) <= 5 && (e.desc === i.desc || merchantKey(e.desc) === key));
@@ -79,10 +87,11 @@ export function importSynced(months: Record<string, Month>, items: SyncItem[], c
     b.expenses.push(e);
     added++; touched.add(i.date.slice(0, 7));
   }
-  return { added, matched, already, skipped, months: [...touched].sort() };
+  return { added, matched, already, skipped, older, months: [...touched].sort() };
 }
 
 export const syncMessage = (r: SyncResult) =>
   (r.added ? `Added ${r.added} charge${r.added === 1 ? '' : 's'}${r.months.length ? ' to ' + r.months.map(monthLabel).join(', ') : ''}.` : 'No new charges.')
   + (r.matched ? ` ${r.matched} already imported by CSV.` : '')
-  + (r.skipped ? ` ${r.skipped} skipped (no planner month for their date).` : '');
+  + (r.skipped ? ` ${r.skipped} skipped (no planner month for their date; start that month to bring them in).` : '')
+  + (r.older ? ` ${r.older} older charge${r.older === 1 ? '' : 's'} from before the planner’s first month left out.` : '');

@@ -40,10 +40,14 @@ describe('card sync', () => {
     const st = twoMonths();
     const { items } = cardItems([tx('a', '2026-10-20', 'KROGER #884', '-133.72'), tx('b', '2026-11-02', 'SHELL OIL 9', '-40.00'), tx('z', '2026-08-01', 'OLD', '-1')]);
     const r = importSynced(st.months, items, 'card-chase', st.months['2026-11'], seqId);
-    expect(r).toEqual({ added: 2, matched: 0, already: 0, skipped: 1, months: ['2026-10', '2026-11'] });
-    expect(syncMessage(r)).toBe('Added 2 charges to October 2026, November 2026. 1 skipped (no planner month for their date).');
+    expect(r).toEqual({ added: 2, matched: 0, already: 0, skipped: 0, older: 1, months: ['2026-10', '2026-11'] });
+    expect(syncMessage(r)).toBe('Added 2 charges to October 2026, November 2026. 1 older charge from before the planner’s first month left out.');
     expect(st.months['2026-10'].budget.expenses[0]).toMatchObject({ desc: 'KROGER #884', amount: 133.72, catId: 'cat-groceries', source: 'sync', catChosen: false, externalId: 'a' });
-    expect(importSynced(st.months, items, 'card-chase', st.months['2026-11'], seqId)).toMatchObject({ added: 0, already: 2, skipped: 1 });
+    expect(importSynced(st.months, items, 'card-chase', st.months['2026-11'], seqId)).toMatchObject({ added: 0, already: 2, older: 1 });
+    // a charge in a month after the first that hasn't been started yet is a real skip
+    const later = importSynced(st.months, cardItems([tx('q', '2026-12-02', 'X', '-1')]).items, 'card-chase', st.months['2026-11'], seqId);
+    expect(later).toMatchObject({ skipped: 1, older: 0 });
+    expect(syncMessage(later)).toBe('No new charges. 1 skipped (no planner month for their date; start that month to bring them in).');
   });
 
   it('a charge already imported by CSV is matched, not added, even when the bank’s text or date differs a little', () => {
