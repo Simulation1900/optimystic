@@ -1,7 +1,7 @@
 import type { CardExpense, Month } from './types.js';
 import { r2 } from './money.js';
 import { monthLabel } from './dates.js';
-import { guessCat } from './budget.js';
+import { guessCat, type CategoryMemory } from './budget.js';
 import { clone, uid } from './ids.js';
 
 /** RFC 4180-ish CSV: quoted fields, doubled quotes, CRLF or LF. Blank rows are dropped. */
@@ -75,7 +75,7 @@ export interface ImportResult { added: number; dup: number; skipped: number; mon
  * `months` is changed in place; `template` supplies the card if a month doesn't have it yet.
  */
 export function importCardItems(months: Record<string, Month>, items: CsvItem[], cardId: string, template: Month | undefined,
-  newId: () => string = uid): ImportResult {
+  newId: () => string = uid, memory?: CategoryMemory): ImportResult {
   let added = 0, dup = 0, skipped = 0;
   const touched = new Set<string>();
   const counts: Record<string, number> = {};
@@ -91,8 +91,8 @@ export function importCardItems(months: Record<string, Month>, items: CsvItem[],
     counts[fp] = (counts[fp] || 0) + 1;
     const have = b.expenses.filter(e => e.date === i.date && e.desc === i.desc && Math.abs(Number(e.amount) - i.amount) < 0.005 && e.cardId === cardId).length;
     if (have >= counts[fp]) { dup++; continue; }
-    const c = guessCat(i.desc, b);
-    const exp: CardExpense = { id: newId(), date: i.date, desc: i.desc, amount: i.amount, catId: c ? c.id : '', cardId, source: 'csv' };
+    const c = guessCat(i.desc, b, memory);
+    const exp: CardExpense = { id: newId(), date: i.date, desc: i.desc, amount: i.amount, catId: c ? c.id : '', cardId, source: 'csv', catChosen: false };
     b.expenses.push(exp);
     added++; touched.add(key);
   }

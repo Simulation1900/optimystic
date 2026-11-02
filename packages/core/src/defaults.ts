@@ -82,7 +82,8 @@ export function normalizeMonth(raw: Partial<Month> | undefined, key: string): Mo
     cards: (Array.isArray(b.cards) ? b.cards : []).map(c => ({ ...c, id: s(c.id), name: s(c.name), billName: s(c.billName), color: s(c.color) })),
     cats: (Array.isArray(b.cats) ? b.cats : []).map(c => ({ ...c, id: s(c.id), name: s(c.name), limit: n(c.limit), cardId: s(c.cardId) })),
     expenses: (Array.isArray(b.expenses) ? b.expenses : []).map(e => ({
-      ...e, id: s(e.id), date: s(e.date), desc: s(e.desc), amount: n(e.amount), catId: s(e.catId), cardId: s(e.cardId)
+      ...e, id: s(e.id), date: s(e.date), desc: s(e.desc), amount: n(e.amount), catId: s(e.catId), cardId: s(e.cardId),
+      catChosen: typeof e.catChosen === 'boolean' ? e.catChosen : !(e.source === 'csv' || e.source === 'sync')
     }))
   };
   const out: Month = { accounts, bills, loans, heloc, budget };

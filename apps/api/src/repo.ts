@@ -1,7 +1,7 @@
 // Moves months between the planner's document shape (packages/core types) and the normalized tables.
 // Writes are diffs: load a month, apply an op with the core, then save only the rows that changed.
 import {
-  clone, expenseFingerprint, normalizeMonth,
+  clone, expenseFingerprint, learnCategories, normalizeMonth, type CategoryMemory,
   type Account, type Bill, type BudgetCard, type BudgetCategory, type CardExpense, type Heloc, type HelocDraw, type Loan, type Month
 } from '@optimystic/core';
 import type { Tx } from './db.js';
@@ -50,7 +50,7 @@ export const LISTS: ListTable[] = [
   {
     table: 'card_expenses', keyCol: 'id',
     fields: [F('date', 'date', 'date'), F('desc', 'description', 'text'), F('amount', 'amount', 'num'), F('catId', 'cat_key', 'text'),
-      F('cardId', 'card_key', 'text'), F('source', 'source', 'text')],
+      F('cardId', 'card_key', 'text'), F('source', 'source', 'text'), F('catChosen', 'cat_chosen', 'bool')],
     get: m => m.budget.expenses, set: (m, r) => { m.budget.expenses = r as CardExpense[]; }
   }
 ];
@@ -213,4 +213,12 @@ export async function deleteMonth(c: Tx, key: string, userId: number | null): Pr
 
 export async function auditNote(c: Tx, userId: number | null, action: string, after: unknown, month: string | null = null) {
   await audit(c, userId, [{ table: 'months', month: month as string, row: month as string, action, before: undefined, after }]);
+}
+
+/** The household's category memory: every expense a person filed, oldest first, across all months. */
+export async function categoryMemory(c: Tx | { query: Tx['query'] }): Promise<CategoryMemory> {
+  const r = await c.query(`SELECT e.description, e.cat_key, coalesce(k.name, '') AS cat_name
+    FROM card_expenses e LEFT JOIN budget_categories k ON k.month_key = e.month_key AND k.cat_key = e.cat_key
+    WHERE e.cat_chosen ORDER BY e.updated_at, e.date, e.sort`);
+  return learnCategories(r.rows.map(x => ({ desc: x.description as string, catId: x.cat_key as string, catName: x.cat_name as string })));
 }

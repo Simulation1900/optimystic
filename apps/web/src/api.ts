@@ -1,4 +1,4 @@
-import type { BudgetStats, Month, MonthTotals } from '@optimystic/core';
+import type { BudgetStats, CategoryMemory, Month, MonthTotals } from '@optimystic/core';
 
 export interface User { id: number; name: string; email: string; role: 'owner' | 'member' }
 export interface MonthPayload {
@@ -8,6 +8,8 @@ export interface MonthPayload {
   totals: MonthTotals;
   budget: BudgetStats;
   heloc: { thisMonth: number; io: number; repayPmt: number; shortfall: number };
+  /** What each merchant was filed under before, across all months. */
+  catMemory?: CategoryMemory;
 }
 
 export class ApiError extends Error {

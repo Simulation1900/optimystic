@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { cents, fmt, guessCat, monthBounds, monthLabel, monthPace, r2, shortDate, uid, type CardExpense, type Month } from '@optimystic/core';
+import { cents, fmt, guessCat, rememberedCat, monthBounds, monthLabel, monthPace, r2, shortDate, uid, type CardExpense, type Month } from '@optimystic/core';
 import { api } from '../api';
 import { dispatch, flush, getState, openMonth, toast, useDerived, useStore } from '../store';
 import { ask, Field, Modal, money2 } from '../ui';
@@ -114,10 +114,15 @@ function AddExpense({ month, mkey, today, onDone, autoFocus }: { month: Month; m
   const [cat, setCat] = useState(b.cats[0]?.id || ''), [card, setCard] = useState(cardFor(b.cats[0]?.id || ''));
   const touched = useRef(false);
   const descRef = useRef<HTMLInputElement>(null);
+  const memory = useStore(s => s.server?.catMemory);
+  const [fromPast, setFromPast] = useState<string | null>(null);
   function onDesc(v: string) {
     setDesc(v);
     if (touched.current) return;
-    const k = guessCat(v, b);
+    // Past choices for this merchant come first, then the keyword rules.
+    const past = rememberedCat(v, b, memory);
+    setFromPast(past ? past.name : null);
+    const k = past || guessCat(v, b);
     if (k) { setCat(k.id); setCard(k.cardId || card); }
   }
   function submit(e: FormEvent) {
@@ -126,7 +131,7 @@ function AddExpense({ month, mkey, today, onDone, autoFocus }: { month: Month; m
     if (!desc.trim() || !amount || !date) return;
     try {
       dispatch({ type: 'expense.add', id: uid(), date, desc: desc.trim(), amount, catId: cat, cardId: card });
-      setDesc(''); setAmt(''); touched.current = false;
+      setDesc(''); setAmt(''); touched.current = false; setFromPast(null);
       onDone ? onDone() : descRef.current?.focus();
     } catch (err) { toast((err as Error).message, true); }
   }
@@ -135,8 +140,9 @@ function AddExpense({ month, mkey, today, onDone, autoFocus }: { month: Month; m
       <div className="full"><label htmlFor={`bDesc${onDone ? 'q' : ''}`}>Description</label><input ref={descRef} id={`bDesc${onDone ? 'q' : ''}`} placeholder="e.g. Kroger" required autoFocus={autoFocus} value={desc} onChange={e => onDesc(e.target.value)} /></div>
       <div><label htmlFor={`bAmt${onDone ? 'q' : ''}`}>Amount</label><input id={`bAmt${onDone ? 'q' : ''}`} inputMode="decimal" placeholder="0.00" required value={amt} onChange={e => setAmt(e.target.value)} /></div>
       <div><label htmlFor={`bDate${onDone ? 'q' : ''}`}>Date</label><input type="date" id={`bDate${onDone ? 'q' : ''}`} min={first} max={last} required value={date} onChange={e => setDate(e.target.value)} /></div>
-      <div><label htmlFor={`bCat${onDone ? 'q' : ''}`}>Category</label><select id={`bCat${onDone ? 'q' : ''}`} value={cat} onChange={e => { touched.current = true; setCat(e.target.value); setCard(cardFor(e.target.value)); }}>
-        {b.cats.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select></div>
+      <div><label htmlFor={`bCat${onDone ? 'q' : ''}`}>Category</label><select id={`bCat${onDone ? 'q' : ''}`} value={cat} onChange={e => { touched.current = true; setFromPast(null); setCat(e.target.value); setCard(cardFor(e.target.value)); }}>
+        {b.cats.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+        {fromPast && <div className="hnote" data-testid="cat-from-past" style={{ marginTop: 4 }}>Suggested from your past purchases at this store</div>}</div>
       <div><label htmlFor={`bCard${onDone ? 'q' : ''}`}>Card</label><select id={`bCard${onDone ? 'q' : ''}`} value={card} onChange={e => setCard(e.target.value)}>
         {b.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
       <div className="full"><button className="pbtn wide" type="submit" style={{ marginTop: 4 }}>Add expense</button></div>

@@ -52,9 +52,13 @@ These are the rules from the HTML planner, implemented in `packages/core` and te
     expenses placed on it.
 12. **CSV import.** Finds the date, description and amount columns (or debit and credit), skips payments, flips the
     sign when purchases are negative, files each line in the month of its *transaction date*, and guesses the
-    category. A line already logged isn't added again, but two identical real charges stay two. **Lines dated in a
+    category: first from what the household filed that store under before (below), then the keyword rules. A line already logged isn't added again, but two identical real charges stay two. **Lines dated in a
     month the planner doesn't have yet are skipped and counted** ("3 skipped: create that month first").
-13. **Old backups.** Amounts an earlier planner version subtracted from balances (`balanceApplied`) are added back
+13. **Category memory.** When someone picks or changes an expense's category, the app remembers that store
+    (order and store numbers stripped, so "AMAZON MKTPL*5P5JM4NC2" and "AMAZON MKTPL*629QL7H33" match) across
+    every month and both logins. Quick-add and CSV import suggest that category before the keyword rules; the
+    latest choice wins. CSV guesses that nobody changed don't teach it anything.
+14. **Old backups.** Amounts an earlier planner version subtracted from balances (`balanceApplied`) are added back
     on import.
 
 ### Notes on the spec's test figures

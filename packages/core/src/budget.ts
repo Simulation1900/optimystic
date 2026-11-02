@@ -18,8 +18,52 @@ export const CAT_RULES: Array<[string, RegExp]> = [
   ['Dining out', /TST\*|SQ \*|GRILL|TACO|BURGER|DELI|BBQ|PIZZA|CAFE|RESTAURANT|FIVE GUYS|CHEESECAKE|HATTIE|SONGBIRD|DOUGH|NATHAN AND SONS|PEPPER POTT|CRAFT BEER|EMMY|CANTEEN|CHICK-FIL|MCDONALD|WENDY|SONIC/]
 ];
 
-/** Guess a category from a purchase description; falls back to "Other", then the last category. */
-export function guessCat(desc: string, b: Budget): BudgetCategory | undefined {
+/**
+ * The merchant part of a card description, so one store matches across purchases:
+ * "AMAZON MKTPL*5P5JM4NC2" → "AMAZON MKTPL", "KROGER #884" → "KROGER", "SHELL OIL 12826796000" → "SHELL OIL",
+ * "72823 - MILLENNIUM PARK" → "MILLENNIUM PARK". Leading processor tags like "TST*" and "SQ *" are kept.
+ */
+export function merchantKey(desc: string): string {
+  return String(desc || '').toUpperCase()
+    .replace(/\*\s*(?=[A-Z0-9]*\d)[A-Z0-9]{4,}\b/g, ' ')   // order ids after a * (must contain a digit)
+    .replace(/#\s*\d+/g, ' ')                                // store numbers
+    .replace(/\b\d{3,}\b/g, ' ')                              // long numbers anywhere
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s\-–.,:;]+|[\s\-–.,:;*]+$/g, '')
+    .trim();
+}
+
+/** What the household filed each merchant under, most recent choice winning. Keyed by merchantKey. */
+export type CategoryMemory = Record<string, { catId: string; catName: string }>;
+
+/**
+ * Build the memory from expenses in the order they were filed (oldest first). Only categories a person
+ * picked count (`catChosen`), not CSV guesses.
+ */
+export function learnCategories(rows: ReadonlyArray<{ desc: string; catId: string; catName: string; catChosen?: boolean }>): CategoryMemory {
+  const mem: CategoryMemory = {};
+  for (const r of rows) {
+    if (r.catChosen === false || !r.catId) continue;
+    const k = merchantKey(r.desc);
+    if (k) mem[k] = { catId: r.catId, catName: r.catName };
+  }
+  return mem;
+}
+
+/** The category the memory remembers for a description, if that category exists in this month's budget. */
+export function rememberedCat(desc: string, b: Budget, memory?: CategoryMemory): BudgetCategory | undefined {
+  const hit = memory?.[merchantKey(desc)];
+  if (!hit) return undefined;
+  return b.cats.find(k => k.id === hit.catId) || b.cats.find(k => k.name.toLowerCase() === hit.catName.toLowerCase());
+}
+
+/**
+ * Guess a category from a purchase description: what you filed this merchant under before, else the keyword
+ * rules, else "Other", else the last category.
+ */
+export function guessCat(desc: string, b: Budget, memory?: CategoryMemory): BudgetCategory | undefined {
+  const remembered = rememberedCat(desc, b, memory);
+  if (remembered) return remembered;
   const u = String(desc || '').toUpperCase();
   for (const [name, rx] of CAT_RULES) {
     if (rx.test(u)) {

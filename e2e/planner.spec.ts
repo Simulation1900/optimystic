@@ -131,3 +131,33 @@ test('two phones edit the same bill: the second is told and shown the latest', a
   await expect(p2.locator('[data-bill="Streaming"] .amt')).toHaveText('$20.00');
   await other.close();
 });
+
+test('quick-add suggests the category you filed a store under before', async ({ page }) => {
+  await seeded(page);
+  await tab(page, 'Card');
+  const add = async (desc: string) => {
+    if (isPhone(page)) await page.getByRole('button', { name: 'Add an expense' }).click();
+    const form = isPhone(page) ? page.getByRole('dialog') : page.locator('.addcard');
+    await form.getByLabel('Description').fill(desc);
+    return form;
+  };
+  // the keyword rules don't know this store: it goes to Other
+  let form = await add('Sample General Store #12');
+  await expect(form.getByLabel('Category')).toHaveValue('cat-other');
+  await expect(form.getByTestId('cat-from-past')).toHaveCount(0);
+  await form.getByLabel('Amount').fill('30');
+  await form.getByRole('button', { name: 'Add expense' }).click();
+  // re-file it under Groceries in the expenses list (phones hide that column, so they save the same change directly)
+  if (isPhone(page)) {
+    const month = await (await page.request.get('/api/months/2026-11')).json();
+    const e = month.month.budget.expenses.find((x: { desc: string }) => x.desc === 'Sample General Store #12');
+    await page.request.patch(`/api/months/2026-11/budget/expenses/${e.id}`, { data: { catId: 'cat-groceries' }, headers: { origin: new URL(page.url()).origin } });
+    await page.reload();
+  } else {
+    await page.getByLabel('Sample General Store #12 category').selectOption('cat-groceries');
+  }
+  await expect(page.locator('.syncpill')).toHaveText('Saved');
+  form = await add('SAMPLE GENERAL STORE #40');
+  await expect(form.getByLabel('Category')).toHaveValue('cat-groceries');
+  await expect(form.getByTestId('cat-from-past')).toBeVisible();
+});

@@ -169,5 +169,15 @@ CREATE TABLE audit_log (
 );
 CREATE INDEX audit_log_at ON audit_log(at DESC);
 `
+  },
+  {
+    id: 2,
+    name: 'category memory',
+    sql: `
+-- Whether a person chose this expense's category (CSV guesses don't teach the category memory).
+ALTER TABLE card_expenses ADD COLUMN cat_chosen boolean NOT NULL DEFAULT false;
+UPDATE card_expenses SET cat_chosen = true WHERE source = 'manual';
+CREATE INDEX card_expenses_chosen ON card_expenses(updated_at) WHERE cat_chosen;
+`
   }
 ];

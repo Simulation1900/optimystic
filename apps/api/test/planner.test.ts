@@ -184,3 +184,23 @@ describe('generic ops endpoint', () => {
     expect((await c.get(K)).json().month.bills.find((b: any) => b.id === 'b-tv').amount).toBe(15.99);
   });
 });
+
+describe('category memory', () => {
+  it('learns from re-filed expenses across months and uses it for the next import', async () => {
+    await c.post('/api/months', { key: '2026-10', from: '2026-11', balances: 'same', cardBills: 'keep' });
+    await c.post('/api/budget/import', { card: 'card-chase', csv: fixture('sample-card-activity.csv'), month: '2026-11' });
+    let oct = (await c.get('/api/months/2026-10')).json();
+    expect(oct.catMemory).toEqual({});
+    const store = oct.month.budget.expenses.find((e: any) => e.desc === 'SAMPLE GENERAL STORE');
+    expect(store).toMatchObject({ catId: 'cat-other', catChosen: false });
+    oct = (await c.patch(`/api/months/2026-10/budget/expenses/${store.id}`, { catId: 'cat-groceries' })).json();
+    expect(oct.catMemory).toEqual({ 'SAMPLE GENERAL STORE': { catId: 'cat-groceries', catName: 'Groceries' } });
+    // the November month sees October's choice too
+    expect((await c.get(K)).json().catMemory['SAMPLE GENERAL STORE'].catId).toBe('cat-groceries');
+    const r = await c.post('/api/budget/import', { card: 'card-chase', month: '2026-11',
+      csv: 'Transaction Date,Post Date,Description,Category,Type,Amount,Memo\n11/20/2026,11/21/2026,SAMPLE GENERAL STORE,Shopping,Sale,-12.00,\n' });
+    expect(r.json().added).toBe(1);
+    const nov = (await c.get(K)).json();
+    expect(nov.month.budget.expenses.find((e: any) => e.date === '2026-11-20').catId).toBe('cat-groceries');
+  });
+});

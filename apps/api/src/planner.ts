@@ -7,7 +7,7 @@ import {
 import { tx, type Db, type Tx } from './db.js';
 import type { Config } from './config.js';
 import { requireUser, type User } from './auth.js';
-import { auditNote, createMonth, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
+import { auditNote, categoryMemory, createMonth, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public extra: Record<string, unknown> = {}) { super(message); }
@@ -24,7 +24,8 @@ export async function monthPayload(c: Tx | Db, key: string, m?: Month) {
     month,
     totals: monthTotals(month),
     budget: budgetStats(month),
-    heloc: { thisMonth: h.thisMonth, io: h.io, repayPmt: h.repayPmt, shortfall: shortfalls(month).reduce((t, x) => t + x.need, 0) }
+    heloc: { thisMonth: h.thisMonth, io: h.io, repayPmt: h.repayPmt, shortfall: shortfalls(month).reduce((t, x) => t + x.need, 0) },
+    catMemory: await categoryMemory(c)
   };
 }
 
@@ -230,7 +231,7 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
         if (template && !template.budget.cards.some(x => x.id === card) && !touched.some(k => before[k].budget.cards.some(x => x.id === card)))
           throw new HttpError(404, 'That card isn’t in the planner.');
         const after: Record<string, Month> = clone(before);
-        const result = importCardItems(after, parsed.items, card, template);
+        const result = importCardItems(after, parsed.items, card, template, undefined, await categoryMemory(c));
         for (const k of touched) await saveMonth(c, k, before[k], after[k], user.id, 'csv-import');
         return { ...result, alreadyLogged: result.dup };
       });

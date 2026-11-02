@@ -311,7 +311,8 @@ export function applyOp(m: Month, key: string, op: Op): void {
         throw new PlannerError('The date has to be in this month.');
       const cat = need(m.budget.cats.find(x => x.id === op.catId), 'category');
       const card = need(m.budget.cards.find(x => x.id === op.cardId), 'card');
-      const e: CardExpense = { id, date: op.date, desc, amount, catId: cat.id, cardId: card.id, source: op.source === 'csv' || op.source === 'sync' ? op.source : 'manual' };
+      const source = op.source === 'csv' || op.source === 'sync' ? op.source : 'manual';
+      const e: CardExpense = { id, date: op.date, desc, amount, catId: cat.id, cardId: card.id, source, catChosen: source === 'manual' };
       m.budget.expenses.push(e);
       return;
     }
@@ -319,7 +320,7 @@ export function applyOp(m: Month, key: string, op: Op): void {
       const e = need(m.budget.expenses.find(x => x.id === op.id), 'expense'), p = op.patch || {};
       if ('desc' in p) e.desc = name(p.desc, e.desc, 200);
       if ('amount' in p) { const a = cents(p.amount); if (a) e.amount = a; }
-      if ('catId' in p) e.catId = need(m.budget.cats.find(x => x.id === p.catId), 'category').id;
+      if ('catId' in p) { e.catId = need(m.budget.cats.find(x => x.id === p.catId), 'category').id; e.catChosen = true; }
       if ('cardId' in p) e.cardId = need(m.budget.cards.find(x => x.id === p.cardId), 'card').id;
       if ('date' in p) {
         const { first, last } = monthBounds(key);

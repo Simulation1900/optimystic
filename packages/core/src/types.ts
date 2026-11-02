@@ -101,6 +101,8 @@ export interface CardExpense extends RowMeta {
   catId: string;
   cardId: string;
   source?: ExpenseSource;
+  /** True when a person picked (or kept) the category; CSV and sync guesses are false. Teaches the category memory. */
+  catChosen?: boolean;
 }
 
 export interface Budget {
