@@ -202,5 +202,37 @@ CREATE TABLE transfers (
   CHECK (from_key <> to_key)
 );
 `
+  },
+  {
+    id: 4,
+    name: 'card sync',
+    sql: `
+-- The bank's id for charges brought in or matched by card sync (SimpleFIN).
+ALTER TABLE card_expenses ADD COLUMN external_id text;
+CREATE INDEX card_expenses_external ON card_expenses(external_id) WHERE external_id IS NOT NULL;
+
+-- One SimpleFIN connection; the access URL is stored encrypted with SYNC_KEY.
+CREATE TABLE bank_connections (
+  id               serial PRIMARY KEY,
+  access_url_enc   text NOT NULL,
+  created_by       integer REFERENCES users(id) ON DELETE SET NULL,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  last_sync_at     timestamptz,
+  last_error       text,
+  last_result      jsonb
+);
+
+-- Each SimpleFIN account, and the planner card it feeds (null = ignored).
+CREATE TABLE bank_links (
+  connection_id  integer NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+  sf_account_id  text NOT NULL,
+  name           text NOT NULL DEFAULT '',
+  org            text NOT NULL DEFAULT '',
+  balance        numeric(12,2),
+  balance_date   timestamptz,
+  card_key       text,
+  PRIMARY KEY (connection_id, sf_account_id)
+);
+`
   }
 ];

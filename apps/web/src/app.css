@@ -137,3 +137,7 @@ dialog.sheet h3{font-size:20px}
 .xrow.done .xpath,.xrow.done .amt{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
 .covertx{display:block;margin:-6px 0 10px;font-size:12.5px;padding:2px 0}
 .srow .mini+.mini{margin-left:-2px}
+.banner.warnbanner{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,var(--panel))}
+.bsum{margin-top:12px}
+.userrow select{border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:7px 9px;max-width:48%}
+.userrow select:focus{outline:none;border-color:var(--accent)}

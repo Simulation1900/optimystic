@@ -20,6 +20,6 @@ export default defineConfig({
     command: 'node apps/api/dist/index.js',
     url: `${BASE}/api/health`,
     reuseExistingServer: false,
-    env: { DATABASE_URL: DB, SESSION_SECRET: 'e2e-secret-e2e-secret-e2e-secret-e2e', PUBLIC_URL: BASE, PORT: String(PORT), WEB_DIST: 'apps/web/dist', LOGIN_LIMIT: '1000' }
+    env: { DATABASE_URL: DB, SESSION_SECRET: 'e2e-secret-e2e-secret-e2e-secret-e2e', PUBLIC_URL: BASE, PORT: String(PORT), WEB_DIST: 'apps/web/dist', LOGIN_LIMIT: '1000', SYNC_KEY: 'e2e-sync-key-e2e-sync-key', SIMPLEFIN_ALLOW_HTTP: '1', SYNC_TIMES: '' }
   }
 });

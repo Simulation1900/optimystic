@@ -11,6 +11,12 @@ export interface Config {
   loginLimit: number;
   /** Addresses whose X-Forwarded-For is believed (TRUST_PROXY, comma-separated). Off by default. */
   trustProxy: string[] | false;
+  /** Encrypts the stored SimpleFIN access URL. Card sync can't be connected without it. */
+  syncKey: string;
+  /** Local times (in tz) to sync cards, e.g. ['06:00', '18:00']. */
+  syncTimes: string[];
+  /** Tests only: allow a plain-HTTP SimpleFIN server. */
+  simplefinAllowHttp: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -29,6 +35,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDist: env.WEB_DIST || null,
     tz: env.TZ || 'America/Chicago',
     loginLimit: Number(env.LOGIN_LIMIT) || 10,
-    trustProxy: env.TRUST_PROXY ? env.TRUST_PROXY.split(',').map(x => x.trim()).filter(Boolean) : false
+    trustProxy: env.TRUST_PROXY ? env.TRUST_PROXY.split(',').map(x => x.trim()).filter(Boolean) : false,
+    syncKey: env.SYNC_KEY || '',
+    syncTimes: (env.SYNC_TIMES ?? '06:00,18:00').split(',').map(x => x.trim()).filter(x => /^\d{2}:\d{2}$/.test(x)),
+    simplefinAllowHttp: env.SIMPLEFIN_ALLOW_HTTP === '1'
   };
 }

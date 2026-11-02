@@ -18,6 +18,7 @@ export function SettingsTab() {
         <Backups isOwner={user.role === 'owner'} onImported={setResult} />
         <Logins me={user} />
         <Password />
+        <CardSync isOwner={user.role === 'owner'} />
         <Appearance />
         <Install />
         <Audit />
@@ -206,6 +207,77 @@ function Appearance() {
         ))}
       </div>
       <p className="hnote" style={{ marginTop: 10 }}>Saved on this device only, so each phone can have its own.</p>
+    </div>
+  );
+}
+
+interface SyncStatus {
+  connected: boolean; lastSyncAt: string | null; lastError: string | null; canConnect: boolean; schedule: string[];
+  lastResult: { message: string } | null;
+  accounts: Array<{ id: string; name: string; org: string; balance: number | null; cardKey: string | null }>;
+}
+
+const ago = (iso: string | null) => (iso ? new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'never');
+const clock = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+
+/** SimpleFIN card sync: connect (owner), say which SimpleFIN account is which card, sync now. */
+function CardSync({ isOwner }: { isOwner: boolean }) {
+  const month = useStore(s => s.month);
+  const cards = month?.budget.cards || [];
+  const [st, setSt] = useState<SyncStatus | null>(null);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  useEffect(() => { api<SyncStatus>('GET', '/api/sync').then(setSt).catch(() => {}); }, []);
+  async function call(label: string, method: string, url: string, body?: unknown) {
+    setBusy(label); setErr('');
+    try { setSt(await api<SyncStatus>(method, url, body)); await reloadAll(); return true; }
+    catch (e) { setErr((e as Error).message); return false; }
+    finally { setBusy(''); }
+  }
+  if (!st) return <div className="hcard"><h3>Card sync</h3><p className="hnote">Loading…</p></div>;
+  return (
+    <div className="hcard" data-testid="card-sync">
+      <h3>Card sync</h3>
+      {!st.connected ? <>
+        <p className="hnote">Brings the Chase and BoA card charges into the Card budget automatically through SimpleFIN Bridge (read-only; it can’t move money). Charges already imported by CSV aren’t added twice.</p>
+        {isOwner ? (st.canConnect ? (
+          <form className="form" style={{ marginTop: 12 }} onSubmit={async e => { e.preventDefault(); if (await call('connect', 'POST', '/api/sync/connect', { token })) setToken(''); }}>
+            <ol className="hnote" style={{ paddingLeft: 18, margin: 0 }}>
+              <li>In SimpleFIN Bridge, connect only the two credit card logins.</li>
+              <li>Create a setup token there and copy it.</li>
+              <li>Paste it here. It only works once.</li>
+            </ol>
+            <label htmlFor="sf-token">Setup token</label>
+            <input id="sf-token" value={token} onChange={e => setToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder="aHR0cHM6Ly9…" required />
+            <div className="err">{err}</div>
+            <button className="pbtn" style={{ marginLeft: 0 }} disabled={!!busy}>{busy ? 'Connecting…' : 'Connect'}</button>
+          </form>
+        ) : <p className="hwarn">The server needs a SYNC_KEY first: add <code>SYNC_KEY=</code> (from <code>openssl rand -hex 32</code>) to the .env file and restart the app.</p>)
+          : <p className="hnote" style={{ marginTop: 8 }}>Only the owner can connect it.</p>}
+      </> : <>
+        <p className="hnote">Syncs at {st.schedule.map(clock).join(' and ') || 'no set times'}. Last sync: <b>{ago(st.lastSyncAt)}</b>.</p>
+        {st.lastResult && <p className="hnote" style={{ marginTop: 4 }} data-testid="sync-result">{st.lastResult.message}</p>}
+        {st.lastError && <div className="hwarn" role="alert">{st.lastError}</div>}
+        <div className="settings-label" style={{ marginTop: 14 }}>Which card is which</div>
+        {st.accounts.map(a => (
+          <div className="userrow" key={a.id}>
+            <span className="sn"><b>{a.name}</b><br /><span className="hnote">{a.org}{a.balance !== null ? ` · balance ${fmt(a.balance)}` : ''}</span></span>
+            <select aria-label={`${a.name} card`} value={a.cardKey || ''} disabled={!isOwner || !!busy}
+              onChange={e => call('link', 'POST', '/api/sync/links', { links: { [a.id]: e.target.value || null } })}>
+              <option value="">Ignore</option>
+              {cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        ))}
+        <div className="err">{err}</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+          <button className="pbtn" style={{ marginLeft: 0 }} disabled={!!busy} onClick={() => call('run', 'POST', '/api/sync/run')}>{busy === 'run' ? 'Syncing…' : 'Sync now'}</button>
+          {isOwner && <button className="tbtn danger" disabled={!!busy} onClick={async () => {
+            if (await ask('Disconnect card sync? Charges already brought in stay. Also revoke the connection in the SimpleFIN Bridge dashboard.', 'Disconnect')) call('disconnect', 'DELETE', '/api/sync');
+          }}>Disconnect</button>}
+        </div>
+      </>}
     </div>
   );
 }

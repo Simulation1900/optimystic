@@ -167,6 +167,25 @@ cd /DATA/AppData/bill-planner && sudo /DATA/docker-compose pull && sudo /DATA/do
 
 Database migrations run when the app starts.
 
+## Card sync (SimpleFIN)
+
+Read-only syncing of the two credit cards' charges into the Card budget, through SimpleFIN Bridge (about $15 a
+year). It never reads or changes the checking and savings accounts.
+
+1. Add `SYNC_KEY` (from `openssl rand -hex 32`) to `.env` and restart the app. It encrypts the saved connection;
+   changing it later means connecting again.
+2. In SimpleFIN Bridge, connect only the Chase and BoA card logins, then create a setup token.
+3. In the app, Settings → Card sync, paste the token (owner only; a token works once), then choose which SimpleFIN
+   account is which card. Anything left on "Ignore" is never read into the planner.
+
+It syncs at 6 AM and 6 PM (`SYNC_TIMES=06:00,18:00`, household time zone) and on Sync now, asking for the last 10
+days so late-posting charges are caught. Charges are filed by transaction date like CSV import, with the category
+memory and keyword rules. Pending charges wait until they post, card payments are skipped, returns come in as
+credits. A charge already brought in by CSV (same card and amount, same store, within 5 days) is matched rather
+than added, and two identical real charges stay two. When SimpleFIN reports a problem (a bank needing you to sign
+in again, a revoked connection) the Card budget tab and Settings show it; nothing else changes and CSV import still
+works. Disconnect deletes the saved connection; revoke it in the SimpleFIN Bridge dashboard too.
+
 ## Backups and restore
 
 - The `backup` container dumps the database nightly to `/DATA/AppData/bill-planner/backups` (30 days kept) and

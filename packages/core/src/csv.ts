@@ -23,7 +23,7 @@ export function parseCSV(text: string): string[][] {
 export interface CsvItem { date: string; desc: string; amount: number }
 export type CsvParse = { ok: true; items: CsvItem[] } | { ok: false; error: string };
 
-const PAY = /PAYMENT THANK|PAYMENT - THANK|AUTOPAY|AUTO PAY|PAYMENT FROM|ONLINE PAYMENT|MOBILE PAYMENT|BA ELECTRONIC PAYMENT/i;
+export const PAY = /PAYMENT THANK|PAYMENT - THANK|AUTOPAY|AUTO PAY|PAYMENT FROM|ONLINE PAYMENT|MOBILE PAYMENT|BA ELECTRONIC PAYMENT/i;
 
 /**
  * Rule 12, first half: find the date, description and amount columns (or debit and credit), skip payments,

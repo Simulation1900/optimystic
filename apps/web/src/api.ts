@@ -10,6 +10,8 @@ export interface MonthPayload {
   heloc: { thisMonth: number; io: number; repayPmt: number; shortfall: number };
   /** What each merchant was filed under before, across all months. */
   catMemory?: CategoryMemory;
+  /** Card sync (SimpleFIN) at a glance. */
+  sync?: { connected: boolean; lastSyncAt: string | null; lastError: string | null };
 }
 
 export class ApiError extends Error {

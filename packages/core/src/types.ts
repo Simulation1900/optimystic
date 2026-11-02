@@ -103,6 +103,8 @@ export interface CardExpense extends RowMeta {
   source?: ExpenseSource;
   /** True when a person picked (or kept) the category; CSV and sync guesses are false. Teaches the category memory. */
   catChosen?: boolean;
+  /** The bank's transaction id, for charges brought in (or matched) by card sync. */
+  externalId?: string;
 }
 
 export interface Budget {

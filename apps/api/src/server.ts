@@ -8,6 +8,7 @@ import type { Config } from './config.js';
 import type { Db } from './db.js';
 import { registerAuth } from './auth.js';
 import { registerPlanner } from './planner.js';
+import { registerSync } from './sync.js';
 
 export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -52,6 +53,7 @@ export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean 
 
   registerAuth(app, db, cfg);
   registerPlanner(app, db, cfg);
+  registerSync(app, db, cfg);
 
   app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {
     const status = (err as { statusCode?: number }).statusCode || 500;

@@ -9,6 +9,12 @@ import type { Config } from './config.js';
 import { requireUser, type User } from './auth.js';
 import { auditNote, categoryMemory, createMonth, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
 
+/** Just enough for the app's banner and the Card budget line. */
+async function syncSummary(c: Tx | Db) {
+  const r = (await c.query('SELECT last_sync_at, last_error FROM bank_connections ORDER BY id DESC LIMIT 1')).rows[0];
+  return r ? { connected: true, lastSyncAt: r.last_sync_at ? new Date(r.last_sync_at).toISOString() : null, lastError: r.last_error as string | null } : { connected: false, lastSyncAt: null, lastError: null };
+}
+
 class HttpError extends Error {
   constructor(public status: number, message: string, public extra: Record<string, unknown> = {}) { super(message); }
 }
@@ -25,7 +31,8 @@ export async function monthPayload(c: Tx | Db, key: string, m?: Month) {
     totals: monthTotals(month),
     budget: budgetStats(month),
     heloc: { thisMonth: h.thisMonth, io: h.io, repayPmt: h.repayPmt, shortfall: shortfalls(month).reduce((t, x) => t + x.need, 0) },
-    catMemory: await categoryMemory(c)
+    catMemory: await categoryMemory(c),
+    sync: await syncSummary(c)
   };
 }
 

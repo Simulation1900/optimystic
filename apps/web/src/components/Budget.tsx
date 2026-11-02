@@ -18,6 +18,7 @@ export function BudgetTab() {
         <div><div className="eyebrow">Credit cards · calendar month</div><h2>Card budget</h2></div>
         <div className="hsub">Expenses logged here become next month’s card bills when you start a new month.</div>
       </div>
+      <SyncLine />
       <div className="bsum">
         <div className="stat"><div className="k">Spent this month</div><div className="v num" data-testid="budget-spent">{fmt(st.spent)}</div><div className="sub">{b.expenses.length} expenses</div></div>
         <div className="stat"><div className="k">Budget</div><div className="v num">{fmt(st.limit)}</div><div className="sub">{b.cats.length} categories</div></div>
@@ -244,6 +245,29 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
           <select aria-label="Filter by card" value={fCard} onChange={e => setFCard(e.target.value)}><option value="">All cards</option>{b.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
         </div></div>
       <div className="bscroll"><table className="btable exptable"><thead><tr><th>Date</th><th>Description</th><th className="hide-sm">Category</th><th className="hide-sm">Card</th><th className="r">Amount</th><th /></tr></thead><tbody>{body}</tbody></table></div>
+    </div>
+  );
+}
+
+/** Card sync status on the Card budget tab, with Sync now. Hidden until card sync is connected. */
+function SyncLine() {
+  const sync = useStore(s => s.server?.sync);
+  const [busy, setBusy] = useState(false);
+  if (!sync?.connected) return null;
+  async function run() {
+    setBusy(true);
+    try {
+      await flush();
+      const r = await api<{ lastResult: { message: string } | null; lastError: string | null }>('POST', '/api/sync/run');
+      await openMonth(getState().key);
+      if (r.lastError) toast(r.lastError, true); else if (r.lastResult) toast(r.lastResult.message);
+    } catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
+  }
+  const when = sync.lastSyncAt ? new Date(sync.lastSyncAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'not yet';
+  return (
+    <div className={`banner ${sync.lastError ? 'warnbanner' : ''}`} data-testid="sync-line">
+      <span className="grow">{sync.lastError ? <><b>Card sync needs attention.</b> {sync.lastError}</> : <>Cards synced {when}.</>}</span>
+      <button className="mini" onClick={run} disabled={busy}>{busy ? 'Syncing…' : 'Sync now'}</button>
     </div>
   );
 }

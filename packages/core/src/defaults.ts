@@ -85,7 +85,8 @@ export function normalizeMonth(raw: Partial<Month> | undefined, key: string): Mo
       ...e, id: s(e.id), date: s(e.date), desc: s(e.desc), amount: n(e.amount), catId: s(e.catId), cardId: s(e.cardId),
       // The HTML planner didn't record a source; its expenses were entered or kept by a person, so they count as chosen.
       source: e.source === 'csv' || e.source === 'sync' ? e.source : 'manual',
-      catChosen: typeof e.catChosen === 'boolean' ? e.catChosen : !(e.source === 'csv' || e.source === 'sync')
+      catChosen: typeof e.catChosen === 'boolean' ? e.catChosen : !(e.source === 'csv' || e.source === 'sync'),
+      ...(e.externalId ? { externalId: String(e.externalId) } : {})
     }))
   };
   const ids = new Set(accounts.map(a => a.id));

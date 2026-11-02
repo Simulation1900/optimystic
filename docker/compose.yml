@@ -13,6 +13,7 @@ services:
       DATABASE_URL: postgres://planner:${DB_PASSWORD}@db:5432/planner
       SESSION_SECRET: ${SESSION_SECRET}
       PUBLIC_URL: ${PUBLIC_URL}
+      SYNC_KEY: ${SYNC_KEY}          # card sync (SimpleFIN); keep it with your other secrets
       TZ: America/Chicago
     ports:
       - "8085:8080"

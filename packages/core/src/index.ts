@@ -12,3 +12,4 @@ export * from './csv.js';
 export * from './newMonth.js';
 export * from './backup.js';
 export * from './ops.js';
+export * from './sync.js';
