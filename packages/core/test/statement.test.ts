@@ -65,6 +65,7 @@ describe('relabel a month', () => {
     const oct = p.write['2026-10'], newNov = p.write['2026-11'];
     expect(oct.bills.find(b => b.id === 'b-mort')).toMatchObject({ paid: true, loanApplied: { principal: 523.03 } });
     expect(oct.budget.expenses).toEqual([]);
+    expect(oct.loans.map(l => l.valueAsOf)).toEqual(['2026-10', '2026-10']);
     expect(oct.budget.cards.find(c => c.id === 'card-chase')).toMatchObject({ closeDay: 21, dueDay: 19 });
     expect(newNov.accounts.map(a => a.balance)).toEqual(before);
     expect(newNov.accounts.map(a => a.deposit)).toEqual(nov.accounts.map(a => a.deposit));

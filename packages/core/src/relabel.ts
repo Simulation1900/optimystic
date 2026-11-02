@@ -24,6 +24,8 @@ export function planRelabel(src: Month, from: string, to: string, existing: Reco
   if (existing[to] && to !== from) throw new PlannerError(`${monthLabel(to)} already exists. Delete it first, or pick another month.`, 409);
   const m = clone(src);
   delete m.meta;
+  // A loan value entered or estimated "as of" the old label was really as of the new one.
+  m.loans.forEach(l => { if (l.valueAsOf === from) l.valueAsOf = to; });
   const next = addMonths(to, 1);
   const charges = m.budget.expenses;
   m.budget.expenses = charges.filter(e => e.date.slice(0, 7) === to);
