@@ -282,5 +282,13 @@ CREATE TABLE card_pending (
 ALTER TABLE budget_cards ADD COLUMN close_day smallint CHECK (close_day BETWEEN 1 AND 31);
 ALTER TABLE budget_cards ADD COLUMN due_day smallint CHECK (due_day BETWEEN 1 AND 31);
 `
+  },
+  {
+    id: 8,
+    name: 'card-only months',
+    sql: `
+-- Months made only to hold older card charges (no accounts, bills or loans).
+ALTER TABLE months ADD COLUMN card_only boolean NOT NULL DEFAULT false;
+`
   }
 ];

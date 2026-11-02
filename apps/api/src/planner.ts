@@ -2,12 +2,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   PlannerError, applyOp, budgetStats, buildNewMonth, clone, helocCalc, importCardItems, isMonthKey, monthTotals, parseCardCSV,
   readBackup, shortfalls, stateCheck, targetVersion, toBackup, todayISO, uid, BackupError,
-  type BalanceMode, type CardBillMode, type Month, type Op, type PlannerState, addMonths, applyStatementBills, statementsFor, withPending
+  type BalanceMode, type CardBillMode, type Month, type Op, type PlannerState, addMonths, applyStatementBills, statementsFor, withPending, monthLabel
 } from '@optimystic/core';
 import { tx, type Db, type Tx } from './db.js';
 import type { Config } from './config.js';
 import { requireUser, type User } from './auth.js';
-import { auditNote, categoryMemory, createMonth, pendingCharges, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
+import { auditNote, cardOnlyKeys, categoryMemory, createMonth, ensureCardOnlyMonths, pendingCharges, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
 
 /** Just enough for the app's banner and the Card budget line. */
 async function syncSummary(c: Tx | Db) {
@@ -67,7 +67,8 @@ export async function monthPayload(c: Tx | Db, key: string, m?: Month) {
     catMemory: await categoryMemory(c),
     sync: await syncSummary(c),
     pending: month ? await pendingCharges(c, key, month) : [],
-    statements: month ? await statementsOf(c, key, month) : []
+    statements: month ? await statementsOf(c, key, month) : [],
+    cardOnlyMonths: await cardOnlyKeys(c)
   };
 }
 
@@ -276,6 +277,9 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
       const parsed = parseCardCSV(csv);
       if (!parsed.ok) throw new HttpError(422, parsed.error);
       return await tx(db, async c => {
+        // Older lines than the first planner month get card-only months to go into (card spending only).
+        const oldest = parsed.items.map(i => i.date.slice(0, 7)).sort()[0];
+        const created = oldest ? await ensureCardOnlyMonths(c, oldest, user.id) : [];
         const all = await listMonths(c);
         const touched = [...new Set(parsed.items.map(i => i.date.slice(0, 7)))].filter(k => all.includes(k));
         const tmplKey = all.includes(current) ? current : all[all.length - 1];
@@ -289,7 +293,8 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
         const result = importCardItems(after, parsed.items, card, template, undefined, await categoryMemory(c));
         for (const k of touched) await saveMonth(c, k, before[k], after[k], user.id, 'csv-import');
         await refreshStatementBills(c, touched.flatMap(k => [k, addMonths(k, 1)]), user.id);
-        return { ...result, alreadyLogged: result.dup };
+        const note = created.length ? ` Made ${created.map(monthLabel).join(', ')} for card spending only.` : '';
+        return { ...result, alreadyLogged: result.dup, created, message: result.message + note };
       });
     } catch (e) { return sendError(reply, e); }
   });

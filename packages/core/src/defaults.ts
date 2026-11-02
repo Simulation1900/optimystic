@@ -95,6 +95,7 @@ export function normalizeMonth(raw: Partial<Month> | undefined, key: string): Mo
     .map(t => ({ ...t, id: s(t.id), fromId: s(t.fromId), toId: s(t.toId), amount: n(t.amount), note: s(t.note), recurring: !!t.recurring, done: !!t.done }))
     .filter(t => ids.has(t.fromId) && ids.has(t.toId) && t.fromId !== t.toId);
   const out: Month = { accounts, bills, transfers, loans, heloc, budget };
+  if (m.cardOnly) out.cardOnly = true;
   if (m.meta) out.meta = m.meta;
   return out;
 }
@@ -103,3 +104,20 @@ export const validState = (s: unknown): s is PlannerState => {
   const x = s as PlannerState;
   return !!(x && typeof x === 'object' && x.current && x.months && typeof x.months === 'object' && x.months[x.current]);
 };
+
+/** A card-only month: the template's cards and categories (no charges), and nothing else. */
+export function cardOnlyMonth(template: Month): Month {
+  const strip = <T extends object>(o: T): T => { const c = { ...o } as Record<string, unknown>; delete c.version; delete c.updatedAt; delete c.updatedBy; return c as T; };
+  return {
+    accounts: [], bills: [], transfers: [], loans: [], heloc: helocDefault(), cardOnly: true,
+    budget: { baseline: template.budget.baseline, cards: template.budget.cards.map(strip), cats: template.budget.cats.map(strip), expenses: [] }
+  };
+}
+
+/** The months to create so charges from `fromKey` on have somewhere to go: every missing month before `firstKey`. */
+export function cardOnlyMonthsNeeded(fromKey: string, firstKey: string, existing: string[]): string[] {
+  const out: string[] = [];
+  for (let k = fromKey; k < firstKey; k = addMonthsLocal(k, 1)) if (!existing.includes(k)) out.push(k);
+  return out;
+}
+const addMonthsLocal = (key: string, n: number) => { const [y, m] = key.split('-').map(Number); const i = y * 12 + m - 1 + n; return `${Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}`; };

@@ -16,6 +16,8 @@ export interface MonthPayload {
   pending?: PendingCharge[];
   /** Each card with a closing day: the statement that closes this month (its bill). */
   statements?: Statement[];
+  /** Months that only track card spending (made for older card charges). */
+  cardOnlyMonths?: string[];
 }
 
 export class ApiError extends Error {

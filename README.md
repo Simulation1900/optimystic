@@ -182,7 +182,9 @@ year). It never reads or changes the checking and savings accounts.
 3. In the app, Settings → Card sync, paste the token (owner only; a token works once), then choose which SimpleFIN
    account is which card. Anything left on "Ignore" is never read into the planner.
 
-Settings → Card sync → "Bring in earlier charges" backfills from a chosen date (up to about 90 days back).
+Settings → Card sync → "Bring in earlier charges" backfills from a chosen date (up to about 90 days back). Charges
+from before the first planner month (by backfill or CSV import) go into card-only months: the Card budget and
+nothing else, no accounts, bills or loans; New month never copies from them.
 
 It syncs at 6 AM and 6 PM (`SYNC_TIMES=06:00,18:00`, household time zone) and on Sync now, asking for the last 10
 days so late-posting charges are caught. Charges are filed by transaction date like CSV import, with the category

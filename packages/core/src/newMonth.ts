@@ -3,6 +3,7 @@ import { r2 } from './money.js';
 import { acctStats } from './accounts.js';
 import { budgetStats } from './budget.js';
 import { clone, uid } from './ids.js';
+import { PlannerError } from './heloc.js';
 
 export type BalanceMode = 'forecast' | 'same' | 'zero';
 export type CardBillMode = 'projected' | 'actual' | 'keep';
@@ -25,6 +26,7 @@ const strip = <T extends object>(o: T): T => {
  * Each card's linked bill becomes projected spending, actual spending, or is left alone.
  */
 export function buildNewMonth(src: Month, opts: NewMonthOptions, newId: () => string = uid): Month {
+  if (src.cardOnly) throw new PlannerError('That month only tracks card spending. Copy from a month with your accounts and bills.');
   const fc = Object.fromEntries(src.accounts.map(a => [a.id, acctStats(src, a).left]));
   const s = clone(src);
   const out: Month = {

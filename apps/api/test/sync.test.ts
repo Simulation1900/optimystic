@@ -162,3 +162,30 @@ describe('card sync before the planner’s first month', () => {
     await stop(ctx);
   });
 });
+
+describe('card sync backfill before the first month', () => {
+  it('a backfill before the first month makes card-only months to hold those charges', async () => {
+    const ctx2 = await start({ SYNC_KEY: 'k'.repeat(64), SIMPLEFIN_ALLOW_HTTP: '1', SYNC_TIMES: '' });
+    const c2 = await withSample(ctx2); // first month: November 2026
+    claimed = false; revoked = false; errors = [];
+    const save = txns;
+    // dates relative to today so the 90-day limit holds whenever the test runs
+    const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
+    const old = iso(60);
+    txns = { 'ACT-chase': [{ id: 'old1', posted: day(old) + 86400, transacted_at: day(old), amount: '-12.34', description: 'OLD CHARGE' }] };
+    await c2.post('/api/sync/connect', { token: token() });
+    await c2.post('/api/sync/links', { links: { 'ACT-chase': 'card-chase' } });
+    const r = (await c2.post('/api/sync/run', { since: iso(70) })).json();
+    const k = old.slice(0, 7);
+    if (k < '2026-11') {
+      expect(r.lastResult.added).toBe(1);
+      expect(r.lastResult.message).toMatch(/for card spending only\./);
+      const m = (await c2.get(`/api/months/${k}`)).json();
+      expect(m.month.cardOnly).toBe(true);
+      expect(m.budget.spent).toBe(12.34);
+    }
+    txns = save;
+    await stop(ctx2);
+  });
+
+});

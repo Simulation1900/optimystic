@@ -140,6 +140,8 @@ export interface Month {
   loans: Loan[];
   heloc: Heloc;
   budget: Budget;
+  /** A month that only tracks card spending (made to hold older card charges): no accounts, bills or loans. */
+  cardOnly?: boolean;
   /** Month row bookkeeping (server only). */
   meta?: RowMeta;
 }

@@ -285,7 +285,7 @@ function CardSync({ isOwner }: { isOwner: boolean }) {
         </div>
         <div className="hdiv" />
         <div className="settings-label">Bring in earlier charges</div>
-        <p className="hnote" style={{ margin: '0 0 8px' }}>Each sync looks back 10 days. To fill in a month that started earlier (up to about 90 days back), pick the first date you need. Charges already brought in, by sync or CSV, aren’t added again; dates in a month the planner doesn’t have are left out.</p>
+        <p className="hnote" style={{ margin: '0 0 8px' }}>Each sync looks back 10 days. To fill in a month that started earlier (up to about 90 days back), pick the first date you need. Charges already brought in, by sync or CSV, aren’t added again. Charges from before your first month get months of their own that only track card spending (no bills or accounts).</p>
         <form className="drawrow" style={{ gridTemplateColumns: '1fr auto' }} onSubmit={e => { e.preventDefault(); if (since) call('backfill', 'POST', '/api/sync/run', { since }); }}>
           <input type="date" aria-label="Bring in charges since" value={since} min={minSince} max={today} onChange={e => setSince(e.target.value)} required />
           <button className="mini" disabled={!!busy || !since}>{busy === 'backfill' ? 'Bringing in…' : 'Bring in'}</button>

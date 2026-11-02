@@ -1,10 +1,10 @@
 // Card sync: pull the two credit cards' charges from SimpleFIN into the card budget.
 import type { FastifyInstance } from 'fastify';
-import { addMonths, cardItems, clone, fmt, importSynced, newlyOverBudget, syncMessage, todayISO, withPending, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
+import { addMonths, cardItems, clone, fmt, monthLabel, importSynced, newlyOverBudget, syncMessage, todayISO, withPending, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
 import { tx, type Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
-import { categoryMemory, listMonths, loadMonth, lockMonths, pendingCharges, saveMonth } from './repo.js';
+import { categoryMemory, ensureCardOnlyMonths, listMonths, loadMonth, lockMonths, pendingCharges, saveMonth } from './repo.js';
 import { claim, decrypt, encrypt, fetchAccounts, SyncError } from './simplefin.js';
 import { sendPush } from './push.js';
 import { refreshStatementBills } from './planner.js';
@@ -65,7 +65,10 @@ async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?
 
     const total: SyncResult & { pending: number } = { added: 0, matched: 0, already: 0, skipped: 0, older: 0, months: [], pending: 0 };
     let over: OverBudget[] = [];
+    let created: string[] = [];
     await tx(db, async c => {
+      // A backfill reaching before the first planner month makes card-only months for those charges.
+      if (sinceOverride !== undefined) created = await ensureCardOnlyMonths(c, todayISO(cfg.tz, new Date((sinceOverride + 86400) * 1000)).slice(0, 7), userId);
       const all = await listMonths(c);
       const current = todayISO(cfg.tz).slice(0, 7);
       const template = all.includes(current) ? current : all[all.length - 1];
@@ -104,7 +107,8 @@ async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?
       const post = template ? await shownBefore() : null;
       if (pre && post) over = newlyOverBudget(pre, post);
     });
-    const result = { ...total, message: syncMessage(total) + (total.pending ? ` ${total.pending} pending charge${total.pending === 1 ? '' : 's'} will come in once posted.` : '') };
+    const result = { ...total, message: syncMessage(total) + (total.pending ? ` ${total.pending} pending charge${total.pending === 1 ? '' : 's'} will come in once posted.` : '')
+      + (created.length ? ` Made ${created.map(monthLabel).join(', ')} for card spending only.` : '') };
     // SimpleFIN reports bank problems (like a login that needs fixing) in `errors` while still returning what it can.
     const err = data.errors.length ? `SimpleFIN: ${data.errors.join(' ')}` : (!links.length ? 'No card is linked yet. Choose which SimpleFIN account is which card.' : null);
     await db.query('UPDATE bank_connections SET last_sync_at = now(), last_error = $2, last_result = $3 WHERE id = $1', [conn.id, err, JSON.stringify(result)]);

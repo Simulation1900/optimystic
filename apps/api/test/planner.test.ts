@@ -157,14 +157,15 @@ describe('card budget', () => {
     await c.post('/api/months', { key: '2026-10', from: '2026-11', balances: 'same', cardBills: 'keep' });
     const csv = fixture('sample-card-activity.csv');
     let r = await c.post('/api/budget/import', { card: 'card-chase', csv, month: '2026-11' });
-    expect(r.json()).toMatchObject({ added: 10, dup: 0, skipped: 1, months: ['2026-10', '2026-11'] });
+    // the September line is before the first month (October): it gets a card-only month
+    expect(r.json()).toMatchObject({ added: 11, dup: 0, skipped: 0, created: ['2026-09'], months: ['2026-09', '2026-10', '2026-11'] });
     r = await c.post('/api/budget/import', { card: 'card-chase', csv, month: '2026-11' });
-    expect(r.json()).toMatchObject({ added: 0, alreadyLogged: 10, skipped: 1 });
+    expect(r.json()).toMatchObject({ added: 0, alreadyLogged: 11, skipped: 0 });
     const oct = (await c.get('/api/months/2026-10')).json();
     expect(oct.budget.spent).toBe(96.54);
     expect(oct.month.budget.expenses.filter((e: any) => /NAYAX/.test(e.desc))).toHaveLength(2);
     const fp = await ctx.db.query("SELECT count(*)::int AS n FROM card_expenses WHERE import_fingerprint IS NOT NULL AND source = 'csv'");
-    expect(fp.rows[0].n).toBe(10);
+    expect(fp.rows[0].n).toBe(11);
     expect((await c.post('/api/budget/import', { card: 'card-chase', csv: 'hello' })).statusCode).toBe(422);
   });
 });
@@ -275,5 +276,28 @@ describe('card bills that follow their statements', () => {
     expect(j.month.bills.find((b: any) => b.name === 'Chase Credit Bill').amount).toBe(bill.amount);
     // cards without a closing day keep the old behaviour
     expect(j.statements.map((s: any) => s.cardId)).toEqual(['card-chase']);
+  });
+});
+
+describe('card-only months for older card charges', () => {
+  it('a CSV with lines before the first month makes card-only months for them', async () => {
+    // the planner starts at November 2026; the sample CSV has lines in Sep, Oct and Nov
+    const r = (await c.post('/api/budget/import', { card: 'card-chase', csv: fixture('sample-card-activity.csv'), month: '2026-11' })).json();
+    expect(r).toMatchObject({ added: 11, skipped: 0, created: ['2026-09', '2026-10'] });
+    expect(r.message).toMatch(/Made September 2026, October 2026 for card spending only\.$/);
+    const sep = (await c.get('/api/months/2026-09')).json();
+    expect(sep.month).toMatchObject({ cardOnly: true, accounts: [], bills: [], loans: [] });
+    expect(sep.month.budget.cats).toHaveLength(14);
+    expect(sep.budget.spent).toBe(55.55);
+    expect(sep.cardOnlyMonths).toEqual(['2026-09', '2026-10']);
+    // no bills or accounts in them, and New month won't copy from them
+    expect((await c.post('/api/months/2026-09/bills', { name: 'x', amount: 1 })).json().error).toMatch(/only tracks card spending/);
+    expect((await c.post('/api/months', { key: '2026-12', from: '2026-10' })).json().error).toMatch(/only tracks card spending/);
+    expect((await c.post('/api/months', { key: '2026-12', from: '2026-11' })).statusCode).toBe(201);
+    // they export and import back as card-only
+    const back = JSON.parse((await c.get('/api/export')).body);
+    expect(back.months['2026-09'].cardOnly).toBe(true);
+    expect((await c.post('/api/import', back)).json().matches).toBe(true);
+    expect((await c.get('/api/months/2026-10')).json().month.cardOnly).toBe(true);
   });
 });

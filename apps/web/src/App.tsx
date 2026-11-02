@@ -84,8 +84,10 @@ function Shell() {
       </nav>
       {tab === 'settings' ? <SettingsTab /> : noMonths ? <FirstMonth onNew={() => setDlg('newMonth')} /> : !month ? <div className="loading">Loading {key ? monthLabel(key) : ''}…</div> : (
         <>
-          {tab === 'bills' && <BillsTab />}
-          {tab === 'loans' && <LoansTab />}
+          {month.cardOnly && (tab === 'bills' || tab === 'loans') ? <CardOnlyNote /> : <>
+            {tab === 'bills' && <BillsTab />}
+            {tab === 'loans' && <LoansTab />}
+          </>}
           {tab === 'budget' && <BudgetTab />}
         </>
       )}
@@ -97,6 +99,22 @@ function Shell() {
       {dlg === 'account' && <AccountDialog onClose={() => setDlg(null)} />}
       <TransferHost />
       {dlg === 'newMonth' && <NewMonthDialog onClose={() => setDlg(null)} />}
+    </div>
+  );
+}
+
+/** Bills and Loans tabs of a month made only for older card charges. */
+function CardOnlyNote() {
+  const months = useStore(s => s.months), cardOnly = useStore(s => s.server?.cardOnlyMonths) || [], key = useStore(s => s.key);
+  const firstPlanning = months.find(k => !cardOnly.includes(k));
+  return (
+    <div className="hcard" style={{ maxWidth: 620, margin: '20px 0' }}>
+      <h3>{monthLabel(key)} only tracks card spending</h3>
+      <p className="hnote">It was made to hold older card charges, so it has the Card budget and nothing else: no accounts, bills or loans.{firstPlanning ? ` Your bills and loans start in ${monthLabel(firstPlanning)}.` : ''}</p>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        <button className="pbtn" style={{ marginLeft: 0 }} onClick={() => setTab('budget')}>Open the Card budget</button>
+        {firstPlanning && <button className="tbtn" onClick={() => openMonth(firstPlanning)}>Go to {monthLabel(firstPlanning)}</button>}
+      </div>
     </div>
   );
 }
@@ -115,6 +133,7 @@ function FirstMonth({ onNew }: { onNew: () => void }) {
 }
 
 function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void; onAddAccount: () => void; onNewMonth: () => void }) {
+  const cardOnly = useStore(s => s.server?.cardOnlyMonths) || [];
   const key = useStore(s => s.key), months = useStore(s => s.months), online = useStore(s => s.online), saving = useStore(s => s.saving);
   const pending = useStore(s => s.pending.length), user = useStore(s => s.user), tab = useStore(s => s.tab);
   const i = months.indexOf(key);
@@ -135,7 +154,7 @@ function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void
             <button className="arrow" title="Previous month" aria-label="Previous month" disabled={i <= 0} onClick={() => openMonth(months[i - 1])}>‹</button>
             <h1><span>{monthLabel(key)}</span><span className="caret">▾</span>
               <select title="Switch month" aria-label="Switch month" value={key} onChange={e => openMonth(e.target.value)}>
-                {months.map(k => <option key={k} value={k}>{monthLabel(k)}</option>)}
+                {months.map(k => <option key={k} value={k}>{monthLabel(k)}{cardOnly.includes(k) ? ' (card spending)' : ''}</option>)}
               </select></h1>
             <button className="arrow" title="Next month" aria-label="Next month" disabled={i < 0 || i >= months.length - 1} onClick={() => openMonth(months[i + 1])}>›</button>
           </div>
@@ -144,7 +163,7 @@ function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void
       <div className="tools">
         <ThemeButton />
         <span className={`syncpill ${!online ? 'offline' : saving || pending ? 'saving' : ''}`} role="status"><i />{status}</span>
-        {key && tab === 'bills' && <>
+        {key && tab === 'bills' && !cardOnly.includes(key) && <>
           <button className="tbtn" onClick={onAddBill}>Add bill</button>
           <button className="tbtn" onClick={() => openTransfer()}>Transfer</button>
           <button className="tbtn wide-only" onClick={onAddAccount}>Add account</button>

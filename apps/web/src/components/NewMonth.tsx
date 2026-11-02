@@ -8,7 +8,9 @@ export function NewMonthDialog({ onClose }: { onClose: () => void }) {
   const months = useStore(s => s.months), key = useStore(s => s.key), month = useStore(s => s.month), today = useStore(s => s.today);
   const last = months[months.length - 1];
   const [target, setTarget] = useState(last ? addMonths(last, 1) : today.slice(0, 7));
-  const [from, setFrom] = useState(key || last || '');
+  const cardOnly = useStore(s => s.server?.cardOnlyMonths) || [];
+  const sources = months.filter(k => !cardOnly.includes(k));
+  const [from, setFrom] = useState(key && !cardOnly.includes(key) ? key : sources[sources.length - 1] || '');
   const [balances, setBalances] = useState('forecast');
   const [cards, setCards] = useState(from && from < today.slice(0, 7) ? 'actual' : 'projected');
   const [one, setOne] = useState(false);
@@ -53,7 +55,7 @@ export function NewMonthDialog({ onClose }: { onClose: () => void }) {
           <div><label htmlFor="nmFrom">Copy from</label>
             <select id="nmFrom" value={from} onChange={e => setFrom(e.target.value)} disabled={!months.length}>
               {!months.length && <option value="">(empty month)</option>}
-              {months.map(k => <option key={k} value={k}>{monthLabel(k)}</option>)}
+              {sources.map(k => <option key={k} value={k}>{monthLabel(k)}</option>)}
             </select></div>
         </div>
         {months.length > 0 && <>

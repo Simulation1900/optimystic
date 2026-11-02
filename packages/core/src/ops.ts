@@ -121,6 +121,7 @@ function setTransfer(m: Month, t: Transfer, v: { fromId?: string; toId?: string;
  * (days in the month) and loan value dates. Throws PlannerError on anything invalid.
  */
 export function applyOp(m: Month, key: string, op: Op): void {
+  if (m.cardOnly && !/^(card|cat|expense|budget)\./.test(op.type)) throw new PlannerError('This month only tracks card spending.');
   switch (op.type) {
     /* ---------- accounts ---------- */
     case 'account.add': {

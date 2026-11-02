@@ -74,10 +74,10 @@ test('card budget: add an expense, import a CSV, start a new month', async ({ pa
 
   await page.getByLabel('Card the file is from').selectOption('card-chase');
   await page.getByTestId('csv-input').setInputFiles(FIX('sample-card-activity.csv'));
-  await expect(page.getByTestId('csv-status')).toHaveText('✓ Added 10 expenses to October 2026, November 2026. 1 skipped (no planner month for their date — create that month first).');
+  await expect(page.getByTestId('csv-status')).toHaveText('✓ Added 11 expenses to September 2026, October 2026, November 2026. Made September 2026 for card spending only.');
   await expect(page.getByTestId('budget-spent')).toHaveText('$170.64');
   await page.getByTestId('csv-input').setInputFiles(FIX('sample-card-activity.csv'));
-  await expect(page.getByTestId('csv-status')).toContainText('Nothing new to add. 10 already logged.');
+  await expect(page.getByTestId('csv-status')).toContainText('Nothing new to add. 11 already logged.');
 
   await page.getByRole('button', { name: 'New month' }).click();
   await page.getByLabel('New month', { exact: true }).fill('2026-12');
@@ -237,4 +237,18 @@ test('a card with a closing day: its bill follows the statement that closes this
   const amount = (await tile.locator('.kv').nth(1).locator('b').textContent())!;
   await tab(page, 'Bills');
   await expect(page.locator('[data-bill="Chase Credit Bill"] .amt')).toHaveText(amount);
+});
+
+test('older card charges get card-only months', async ({ page }) => {
+  await seeded(page);   // the planner starts at November 2026
+  await tab(page, 'Card');
+  await page.getByLabel('Card the file is from').selectOption('card-chase');
+  await page.getByTestId('csv-input').setInputFiles(FIX('sample-card-activity.csv'));
+  await expect(page.getByTestId('csv-status')).toContainText('Made September 2026, October 2026 for card spending only.');
+  await page.getByLabel('Switch month').selectOption('2026-10');
+  await expect(page.getByTestId('budget-spent')).toHaveText('$96.54');
+  await tab(page, 'Bills');
+  await expect(page.getByText('October 2026 only tracks card spending')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add bill' })).toHaveCount(0);
+  await expect(page.getByLabel('Switch month').locator('option', { hasText: 'October 2026 (card spending)' })).toHaveCount(1);
 });

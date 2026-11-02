@@ -1,7 +1,7 @@
 // Moves months between the planner's document shape (packages/core types) and the normalized tables.
 // Writes are diffs: load a month, apply an op with the core, then save only the rows that changed.
 import {
-  clone, expenseFingerprint, guessCat, learnCategories, normalizeMonth, type CategoryMemory, type PendingCharge,
+  cardOnlyMonth, cardOnlyMonthsNeeded, clone, expenseFingerprint, guessCat, learnCategories, normalizeMonth, type CategoryMemory, type PendingCharge,
   type Account, type Bill, type Transfer, type BudgetCard, type BudgetCategory, type CardExpense, type Heloc, type HelocDraw, type Loan, type Month
 } from '@optimystic/core';
 import type { Tx } from './db.js';
@@ -116,6 +116,7 @@ export async function loadMonth(c: Tx | { query: Tx['query'] }, key: string): Pr
   if (!mr.rowCount) return undefined;
   const m: Month = normalizeMonth({}, key);
   m.meta = meta(mr.rows[0]);
+  if (mr.rows[0].card_only) m.cardOnly = true;
   m.budget.baseline = Number(mr.rows[0].baseline);
   for (const t of LISTS) {
     const rows = (await c.query(
@@ -201,7 +202,7 @@ export async function saveMonth(c: Tx, key: string, before: Month, after: Month,
 /** Create (or replace) a month from a planner document. */
 export async function createMonth(c: Tx, key: string, m: Month, userId: number | null, copiedFrom: string | null, action = 'create'): Promise<void> {
   await c.query('DELETE FROM months WHERE key = $1', [key]);
-  await c.query('INSERT INTO months (key, copied_from, created_by, baseline, updated_by) VALUES ($1, $2, $3, $4, $3)', [key, copiedFrom, userId, Number(m.budget.baseline) || 0]);
+  await c.query('INSERT INTO months (key, copied_from, created_by, baseline, updated_by, card_only) VALUES ($1, $2, $3, $4, $3, $5)', [key, copiedFrom, userId, Number(m.budget.baseline) || 0, !!m.cardOnly]);
   await c.query('INSERT INTO heloc (month_key, updated_by) VALUES ($1, $2)', [key, userId]);
   const empty = normalizeMonth({}, key);
   empty.budget = { baseline: m.budget.baseline, cards: [], cats: [], expenses: [] };
@@ -238,4 +239,21 @@ export async function pendingCharges(c: Tx | { query: Tx['query'] }, key: string
   const memory = await categoryMemory(c);
   return r.rows.map(x => ({ id: x.id as string, cardId: x.card_key as string, date: x.date as string, desc: x.description as string, amount: Number(x.amount),
     catId: m ? guessCat(x.description as string, m.budget, memory)?.id : undefined }));
+}
+
+export async function cardOnlyKeys(c: Tx | { query: Tx['query'] }): Promise<string[]> {
+  return (await c.query('SELECT key FROM months WHERE card_only ORDER BY key')).rows.map(r => r.key as string);
+}
+
+/**
+ * Make card-only months for every missing month from `fromKey` up to the planner's first month, so older card
+ * charges have somewhere to go. They copy the first month's cards and categories. Returns the months created.
+ */
+export async function ensureCardOnlyMonths(c: Tx, fromKey: string, userId: number | null): Promise<string[]> {
+  const all = (await c.query('SELECT key FROM months ORDER BY key')).rows.map(r => r.key as string);
+  if (!all.length || fromKey >= all[0]) return [];
+  const need = cardOnlyMonthsNeeded(fromKey, all[0], all);
+  const template = (await loadMonth(c, all[0]))!;
+  for (const k of need) await createMonth(c, k, cardOnlyMonth(template), userId, null, 'card-only');
+  return need;
 }
