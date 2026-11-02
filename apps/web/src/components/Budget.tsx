@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { cents, fmt, guessCat, rememberedCat, monthBounds, monthLabel, monthPace, r2, shortDate, uid, type CardExpense, type Month } from '@optimystic/core';
+import { addMonths, cents, fmt, guessCat, rememberedCat, monthBounds, monthLabel, monthPace, r2, shortDate, uid, type CardExpense, type Month } from '@optimystic/core';
 import { api } from '../api';
 import { dispatch, flush, getState, openMonth, toast, useDerived, useStore } from '../store';
 import { ask, Field, Modal, money2 } from '../ui';
@@ -13,6 +13,7 @@ export function BudgetTab() {
   const saving = r2((Number(b.baseline) || 0) - st.projected);
   const [quick, setQuick] = useState(false);
   const pending = useStore(s => (s.server?.key === key ? s.server.pending : undefined)) || [];
+  const statements = useStore(s => (s.server?.key === key ? s.server.statements : undefined)) || [];
   const pendingTotal = r2(pending.reduce((t, p) => t + p.amount, 0));
   return (
     <section id="budget">
@@ -41,8 +42,19 @@ export function BudgetTab() {
               <div className="big num" style={{ marginTop: 8 }}>{fmt(c.spent)}</div>
               <div className="hnote">spent of {fmt(c.budget)} budgeted this month</div>
               <div className={`pace ${c.spent > c.budget ? 'over' : ''}`}><i style={{ width: pct + '%' }} />{pace > 0 && pace < 1 && <b style={{ left: pace * 100 + '%' }} title="Where you'd be at an even pace" />}</div>
-              <div className="kv"><span>Projected bill</span><b className="num">{fmt(c.projected)}</b></div>
-              <div className="hnote">{c.billName ? `Becomes “${c.billName}” next month` : 'Not linked to a bill'}</div>
+              {(() => {
+                const s = statements.find(x => x.cardId === c.id);
+                if (!s) return <>
+                  <div className="kv"><span>Projected bill</span><b className="num">{fmt(c.projected)}</b></div>
+                  <div className="hnote">{c.billName ? `Becomes “${c.billName}” next month` : 'Not linked to a bill'}</div>
+                </>;
+                return <div data-testid={`statement-${c.id}`}>
+                  <div className="kv"><span>Statement {shortDate(s.start)} – {shortDate(s.end)}</span><b className="num">{fmt(s.soFar)}{s.closed ? '' : ' so far'}</b></div>
+                  <div className="kv"><span>{s.closed ? 'Statement total' : 'Projected statement'}</span><b className="num">{fmt(s.amount)}</b></div>
+                  <div className="hnote">{s.billName ? `This month’s “${s.billName}”${s.dueDate ? `, due ${shortDate(s.dueDate)}` : ''}. ${s.closed ? 'Final.' : `Final once it closes ${shortDate(s.end)}.`}` : 'Not linked to a bill'}</div>
+                  {s.incomplete && <div className="hwarn">Part of this statement is from {monthLabel(addMonths(mkeyOf(s.start), 0))}, which isn’t in the planner, so the total may be short.</div>}
+                </div>;
+              })()}
             </div>
           );
         })}
@@ -186,7 +198,8 @@ function Cards({ month }: { month: Month }) {
   return (
     <>
       <h3>Cards</h3>
-      <table className="btable"><thead><tr><th>Card</th><th>Becomes this bill</th><th /></tr></thead>
+      <p className="hnote" style={{ margin: '0 0 8px' }}>With a closing day, a card’s bill is the statement that closes that month (paid in full); without one, it follows the calendar-month budget.</p>
+      <table className="btable cardtable"><thead><tr><th>Card</th><th>Bill</th><th className="r">Closes</th><th className="r">Due</th><th /></tr></thead>
         <tbody>{b.cards.map(c => (
           <tr key={c.id}>
             <td><Field aria-label="Card name" value={c.name} onCommit={v => run(() => dispatch({ type: 'card.update', id: c.id, version: c.version, patch: { name: v } }))} /></td>
@@ -194,6 +207,10 @@ function Cards({ month }: { month: Month }) {
               <option value="">(no bill)</option>
               {billNames.concat(c.billName && !billNames.includes(c.billName) ? [c.billName] : []).map(n => <option key={n} value={n}>{n}</option>)}
             </select></td>
+            <td className="r"><Field className="r day" inputMode="numeric" aria-label={`${c.name} statement closing day`} placeholder="—" value={c.closeDay ?? ''}
+              onCommit={v => run(() => dispatch({ type: 'card.update', id: c.id, version: c.version, patch: { closeDay: v || null } }))} /></td>
+            <td className="r"><Field className="r day" inputMode="numeric" aria-label={`${c.name} payment due day`} placeholder="—" value={c.dueDay ?? ''}
+              onCommit={v => run(() => dispatch({ type: 'card.update', id: c.id, version: c.version, patch: { dueDay: v || null } }))} /></td>
             <td><button className="x" title="Remove card" aria-label={`Remove ${c.name}`} onClick={async () => {
               if (b.cards.length <= 1) return toast('Keep at least one card.', true);
               const to = b.cards.find(x => x.id !== c.id)!;
@@ -285,3 +302,5 @@ function SyncLine() {
     </div>
   );
 }
+
+const mkeyOf = (iso: string) => iso.slice(0, 7);

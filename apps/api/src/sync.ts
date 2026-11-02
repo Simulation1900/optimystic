@@ -7,6 +7,7 @@ import { requireUser } from './auth.js';
 import { categoryMemory, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
 import { claim, decrypt, encrypt, fetchAccounts, SyncError } from './simplefin.js';
 import { sendPush } from './push.js';
+import { refreshStatementBills } from './planner.js';
 
 const LOOKBACK_DAYS = 10; // late-posting charges are caught on the next runs
 
@@ -93,6 +94,8 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
         total.added += r.added; total.matched += r.matched; total.already += r.already; total.skipped += r.skipped; total.older = (total.older || 0) + (r.older || 0);
         total.months = [...new Set([...total.months, ...r.months])].sort();
       }
+      // New charges change the statements the card bills come from (this month's and next month's).
+      if (total.added) await refreshStatementBills(c, total.months.flatMap(k => [k, addMonths(k, 1)]), userId);
     });
     const result = { ...total, message: syncMessage(total) + (total.pending ? ` ${total.pending} pending charge${total.pending === 1 ? '' : 's'} will come in once posted.` : '') };
     // SimpleFIN reports bank problems (like a login that needs fixing) in `errors` while still returning what it can.

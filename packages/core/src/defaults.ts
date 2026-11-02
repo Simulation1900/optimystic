@@ -79,7 +79,8 @@ export function normalizeMonth(raw: Partial<Month> | undefined, key: string): Mo
   const b = (m.budget || bd) as Partial<Budget>;
   const budget: Budget = {
     baseline: b.baseline === null || b.baseline === undefined ? 4537 : n(b.baseline),
-    cards: (Array.isArray(b.cards) ? b.cards : []).map(c => ({ ...c, id: s(c.id), name: s(c.name), billName: s(c.billName), color: s(c.color) })),
+    cards: (Array.isArray(b.cards) ? b.cards : []).map(c => ({ ...c, id: s(c.id), name: s(c.name), billName: s(c.billName), color: s(c.color),
+      closeDay: c.closeDay ? Number(c.closeDay) || null : null, dueDay: c.dueDay ? Number(c.dueDay) || null : null })),
     cats: (Array.isArray(b.cats) ? b.cats : []).map(c => ({ ...c, id: s(c.id), name: s(c.name), limit: n(c.limit), cardId: s(c.cardId) })),
     expenses: (Array.isArray(b.expenses) ? b.expenses : []).map(e => ({
       ...e, id: s(e.id), date: s(e.date), desc: s(e.desc), amount: n(e.amount), catId: s(e.catId), cardId: s(e.cardId),

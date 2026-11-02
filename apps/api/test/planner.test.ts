@@ -246,3 +246,34 @@ describe('transfers', () => {
     expect(j.totals.accounts.sav1.left).toBe(-600);
   });
 });
+
+describe('card bills that follow their statements', () => {
+  it('set the linked bill from the statement closing this month, across both months, and stop once paid', async () => {
+    // October holds the start of each cycle
+    await c.post('/api/months', { key: '2026-10', from: '2026-11', balances: 'same', cardBills: 'keep' });
+    await c.post('/api/months/2026-10/budget/expenses', { id: 'o1', date: '2026-10-25', desc: 'Oct charge', amount: 100, catId: 'cat-other', cardId: 'card-chase' });
+    await c.post('/api/months/2026-10/budget/expenses', { id: 'o0', date: '2026-10-20', desc: 'last cycle', amount: 999, catId: 'cat-other', cardId: 'card-chase' });
+    // turning on Chase's closing day (21st) makes November's Chase bill follow the Oct 22 – Nov 21 statement
+    let j = (await c.patch(`${K}/budget/cards/card-chase`, { closeDay: 21, dueDay: 19 })).json();
+    const st = j.statements.find((s: any) => s.cardId === 'card-chase');
+    expect(st).toMatchObject({ start: '2026-10-22', end: '2026-11-21', soFar: 100, dueDate: '2026-12-19', billName: 'Chase Credit Bill' });
+    expect(j.month.bills.find((b: any) => b.name === 'Chase Credit Bill').amount).toBe(st.amount);
+    // a November charge in the cycle moves the bill
+    j = (await c.post(`${K}/budget/expenses`, { id: 'n1', date: '2026-11-05', desc: 'Nov charge', amount: 50, catId: 'cat-other', cardId: 'card-chase' })).json();
+    const st2 = j.statements.find((s: any) => s.cardId === 'card-chase');
+    expect(st2.soFar).toBe(150);
+    expect(j.month.bills.find((b: any) => b.name === 'Chase Credit Bill').amount).toBe(st2.amount);
+    // an October edit (the month before) also updates November's bill
+    await c.patch('/api/months/2026-10/budget/expenses/o1', { amount: 200 });
+    j = (await c.get(K)).json();
+    expect(j.statements.find((s: any) => s.cardId === 'card-chase').soFar).toBe(250);
+    expect(j.month.bills.find((b: any) => b.name === 'Chase Credit Bill').amount).toBe(j.statements.find((s: any) => s.cardId === 'card-chase').amount);
+    // once paid, it stays as paid
+    const bill = j.month.bills.find((b: any) => b.name === 'Chase Credit Bill');
+    await c.patch(`${K}/bills/${bill.id}`, { paid: true });
+    j = (await c.post(`${K}/budget/expenses`, { id: 'n2', date: '2026-11-06', desc: 'more', amount: 10, catId: 'cat-other', cardId: 'card-chase' })).json();
+    expect(j.month.bills.find((b: any) => b.name === 'Chase Credit Bill').amount).toBe(bill.amount);
+    // cards without a closing day keep the old behaviour
+    expect(j.statements.map((s: any) => s.cardId)).toEqual(['card-chase']);
+  });
+});

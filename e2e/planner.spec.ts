@@ -220,3 +220,20 @@ test('a tapped notification’s link opens the right tab', async ({ page }) => {
   await page.goto('/?tab=settings');
   await expect(page.getByTestId('notifications')).toBeVisible();
 });
+
+test('a card with a closing day: its bill follows the statement that closes this month', async ({ page }) => {
+  await seeded(page);
+  await tab(page, 'Card');
+  await page.getByLabel('Chase statement closing day').fill('21');
+  await page.getByLabel('Chase statement closing day').press('Enter');
+  await page.getByLabel('Chase payment due day').fill('19');
+  await page.getByLabel('Chase payment due day').press('Enter');
+  const tile = page.getByTestId('statement-card-chase');
+  await expect(tile).toContainText('Statement Oct 22 – Nov 21');
+  await expect(tile).toContainText('due Dec 19');
+  await expect(tile).toContainText('isn’t in the planner'); // October isn't there, so the total may be short
+  await expect(page.locator('.syncpill')).toHaveText('Saved');
+  const amount = (await tile.locator('.kv').nth(1).locator('b').textContent())!;
+  await tab(page, 'Bills');
+  await expect(page.locator('[data-bill="Chase Credit Bill"] .amt')).toHaveText(amount);
+});

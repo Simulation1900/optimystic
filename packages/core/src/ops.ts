@@ -33,7 +33,7 @@ export type Op =
   | { type: 'heloc.cover'; acctId?: string; ids?: string[] }
   | { type: 'budget.update'; version?: number; patch: { baseline?: number | string } }
   | { type: 'card.add'; id: string; name?: string }
-  | { type: 'card.update'; id: string; version?: number; patch: { name?: string; billName?: string; color?: string } }
+  | { type: 'card.update'; id: string; version?: number; patch: { name?: string; billName?: string; color?: string; closeDay?: number | string | null; dueDay?: number | string | null } }
   | { type: 'card.remove'; id: string; version?: number }
   | { type: 'cat.add'; id: string; name?: string; limit?: number | string; cardId?: string }
   | { type: 'cat.update'; id: string; version?: number; patch: { name?: string; limit?: number | string; cardId?: string } }
@@ -306,6 +306,8 @@ export function applyOp(m: Month, key: string, op: Op): void {
       if ('name' in p) c.name = name(p.name, c.name);
       if ('billName' in p) c.billName = String(p.billName ?? '').slice(0, 120);
       if ('color' in p) c.color = color(p.color, c.color);
+      if ('closeDay' in p) c.closeDay = dueDay(p.closeDay);
+      if ('dueDay' in p) c.dueDay = dueDay(p.dueDay);
       return;
     }
     case 'card.remove': {

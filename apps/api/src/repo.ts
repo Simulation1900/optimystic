@@ -45,7 +45,7 @@ export const LISTS: ListTable[] = [
   },
   {
     table: 'budget_cards', keyCol: 'card_key',
-    fields: [F('name', 'name', 'text'), F('billName', 'bill_name', 'text'), F('color', 'color', 'text')],
+    fields: [F('name', 'name', 'text'), F('billName', 'bill_name', 'text'), F('color', 'color', 'text'), F('closeDay', 'close_day', 'int'), F('dueDay', 'due_day', 'int')],
     get: m => m.budget.cards, set: (m, r) => { m.budget.cards = r as BudgetCard[]; }
   },
   {

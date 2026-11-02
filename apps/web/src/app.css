@@ -143,3 +143,4 @@ dialog.sheet h3{font-size:20px}
 .userrow select:focus{outline:none;border-color:var(--accent)}
 .pendrow td{color:var(--muted);font-style:italic}
 .pendrow .tag{font-style:normal;margin-left:6px}
+.cardtable .day{width:46px}

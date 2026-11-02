@@ -47,8 +47,12 @@ These are the rules from the HTML planner, implemented in `packages/core` and te
    original schedule.
 9. **New month.** Copies recurring bills, all unpaid (one-time expenses only if asked). Starting balances:
    last month's ending balance (default), same, or $0; saved monthly deposits carry over. Loans and HELOC carry their balances; HELOC draws and card expenses start empty.
-10. **Card bills.** On a new month each card's linked bill becomes projected spending (spent + unspent limits of
-    that card's categories), actual spending, or is left alone.
+10. **Card bills.** A card with a statement closing day (Card budget → Cards) pays its statement in full: its linked
+    bill in a month is the statement that closes during that month (Chase closing on the 21st: Oct 22 – Nov 21 is
+    November's bill, due Dec 19). Before the closing day the bill is projected (charges so far + the card's budget
+    for the days left); after it, it's the exact net of the cycle's charges across both months. It updates after
+    expenses, imports and syncs, and stops once the bill is ticked paid. A card without a closing day works as
+    before: on a new month its bill becomes projected spending, actual spending, or is left alone.
 11. **Card budget.** Calendar months. A category's spent = its expenses (returns negative). A card's spent = the
     expenses placed on it.
 12. **CSV import.** Finds the date, description and amount columns (or debit and credit), skips payments, flips the

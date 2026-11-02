@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   PlannerError, applyOp, budgetStats, buildNewMonth, clone, helocCalc, importCardItems, isMonthKey, monthTotals, parseCardCSV,
   readBackup, shortfalls, stateCheck, targetVersion, toBackup, todayISO, uid, BackupError,
-  type BalanceMode, type CardBillMode, type Month, type Op, type PlannerState
+  type BalanceMode, type CardBillMode, type Month, type Op, type PlannerState, addMonths, applyStatementBills, statementsFor
 } from '@optimystic/core';
 import { tx, type Db, type Tx } from './db.js';
 import type { Config } from './config.js';
@@ -13,6 +13,14 @@ import { auditNote, categoryMemory, createMonth, deleteMonth, listMonths, loadMo
 async function syncSummary(c: Tx | Db) {
   const r = (await c.query('SELECT last_sync_at, last_error FROM bank_connections ORDER BY id DESC LIMIT 1')).rows[0];
   return r ? { connected: true, lastSyncAt: r.last_sync_at ? new Date(r.last_sync_at).toISOString() : null, lastError: r.last_error as string | null } : { connected: false, lastSyncAt: null, lastError: null };
+}
+
+async function statementsOf(c: Tx | Db, key: string, month: Month) {
+  if (!month.budget.cards.some(x => x.closeDay)) return [];
+  const prev = await loadMonth(c, addMonths(key, -1));
+  const months: Record<string, Month> = { [key]: month };
+  if (prev) months[addMonths(key, -1)] = prev;
+  return statementsFor(months, key, todayISO(TZ));
 }
 
 /** Pending card charges from the latest sync that fall in this month (shown, not counted). */
@@ -27,6 +35,25 @@ class HttpError extends Error {
 }
 
 /** The answer to every month read and write: the month, its totals, and the month list, so a screen redraws from one reply. */
+let TZ = 'America/Chicago';
+
+/**
+ * Card bills that follow their statements: set each one (unpaid) in these months to its statement amount.
+ * Call after anything that can change a statement: expenses, card settings, a sync or import, a new month.
+ */
+export async function refreshStatementBills(c: Tx, keys: string[], userId: number | null): Promise<void> {
+  const today = todayISO(TZ);
+  for (const key of [...new Set(keys)].sort()) {
+    const before = await loadMonth(c, key);
+    if (!before || !before.budget.cards.some(x => x.closeDay)) continue;
+    const prev = await loadMonth(c, addMonths(key, -1));
+    const after = clone(before);
+    const months: Record<string, Month> = { [key]: after };
+    if (prev) months[addMonths(key, -1)] = prev;
+    if (applyStatementBills(months, key, today).length) await saveMonth(c, key, before, after, userId, 'statement');
+  }
+}
+
 export async function monthPayload(c: Tx | Db, key: string, m?: Month) {
   const month = m || await loadMonth(c, key);
   if (!month) throw new HttpError(404, `There’s no ${key} in the planner.`);
@@ -40,7 +67,8 @@ export async function monthPayload(c: Tx | Db, key: string, m?: Month) {
     heloc: { thisMonth: h.thisMonth, io: h.io, repayPmt: h.repayPmt, shortfall: shortfalls(month).reduce((t, x) => t + x.need, 0) },
     catMemory: await categoryMemory(c),
     sync: await syncSummary(c),
-    pending: await pendingFor(c, key)
+    pending: await pendingFor(c, key),
+    statements: month ? await statementsOf(c, key, month) : []
   };
 }
 
@@ -58,6 +86,7 @@ function sendError(reply: FastifyReply, e: unknown) {
 }
 
 export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
+  TZ = cfg.tz;
   /** Run ops against one month inside a transaction, with the version check (409 when someone else got there first). */
   async function runOps(user: User, key: string, ops: Op[]) {
     return tx(db, async c => {
@@ -76,6 +105,8 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
         applyOp(after, key, op);
       }
       await saveMonth(c, key, before, after, user.id);
+      // Expenses and card settings feed the statements this month's and next month's card bills come from.
+      if (ops.some(o => /^(expense|card)\./.test(o.type))) await refreshStatementBills(c, [key, addMonths(key, 1)], user.id);
       return monthPayload(c, key);
     });
   }
@@ -143,6 +174,7 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
           m = readBackup({ current: key, months: { [key]: {} } }).months[key];
         }
         await createMonth(c, key, m, user.id, from || null);
+        await refreshStatementBills(c, [key], user.id);
         return monthPayload(c, key);
       });
       return reply.code(201).send(out);
@@ -257,6 +289,7 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
         const after: Record<string, Month> = clone(before);
         const result = importCardItems(after, parsed.items, card, template, undefined, await categoryMemory(c));
         for (const k of touched) await saveMonth(c, k, before[k], after[k], user.id, 'csv-import');
+        await refreshStatementBills(c, touched.flatMap(k => [k, addMonths(k, 1)]), user.id);
         return { ...result, alreadyLogged: result.dup };
       });
     } catch (e) { return sendError(reply, e); }

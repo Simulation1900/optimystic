@@ -13,3 +13,5 @@ export * from './newMonth.js';
 export * from './backup.js';
 export * from './ops.js';
 export * from './sync.js';
+export * from './statement.js';
+export * from './relabel.js';

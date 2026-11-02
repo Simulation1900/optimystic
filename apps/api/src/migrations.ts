@@ -273,5 +273,14 @@ CREATE TABLE card_pending (
   PRIMARY KEY (connection_id, card_key, id)
 );
 `
+  },
+  {
+    id: 7,
+    name: 'card statements',
+    sql: `
+-- A card's statement closing day and payment due day (null = its bill follows the calendar-month budget).
+ALTER TABLE budget_cards ADD COLUMN close_day smallint CHECK (close_day BETWEEN 1 AND 31);
+ALTER TABLE budget_cards ADD COLUMN due_day smallint CHECK (due_day BETWEEN 1 AND 31);
+`
   }
 ];

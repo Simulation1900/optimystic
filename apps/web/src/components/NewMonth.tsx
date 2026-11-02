@@ -16,6 +16,8 @@ export function NewMonthDialog({ onClose }: { onClose: () => void }) {
 
   // The note can only preview the month on screen (other months aren't loaded); the server uses the real source.
   const note = useMemo(() => {
+    const stmt = (month?.budget.cards || []).filter(c => c.closeDay).map(c => c.name);
+    if (stmt.length && cards !== 'keep') return `${stmt.join(' and ')} ${stmt.length > 1 ? 'follow their statements' : 'follows its statement'} (the one closing that month); other cards: ${cards === 'actual' ? 'actual spending' : 'projected spending'}.`;
     if (cards === 'keep') return 'Card bills keep their current amounts.';
     if (!month || from !== key) return `Each card’s linked bill becomes its ${cards === 'actual' ? 'actual spending' : 'projected spending'} in ${from ? monthLabel(from) : 'that month'}.`;
     const cs = budgetStats(month);

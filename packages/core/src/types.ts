@@ -82,6 +82,10 @@ export interface BudgetCard extends RowMeta {
   name: string;
   billName: string;
   color: string;
+  /** Day of the month the statement closes (null = the card's bill follows the calendar-month budget instead). */
+  closeDay?: number | null;
+  /** Day of the month the payment is due (shown on the card's bill). */
+  dueDay?: number | null;
 }
 
 export interface BudgetCategory extends RowMeta {
