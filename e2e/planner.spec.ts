@@ -148,6 +148,7 @@ test('quick-add suggests the category you filed a store under before', async ({ 
   await form.getByLabel('Amount').fill('30');
   await form.getByRole('button', { name: 'Add expense' }).click();
   // re-file it under Groceries in the expenses list (phones hide that column, so they save the same change directly)
+  await expect(page.locator('.syncpill')).toHaveText('Saved'); // the new expense has reached the server
   if (isPhone(page)) {
     const month = await (await page.request.get('/api/months/2026-11')).json();
     const e = month.month.budget.expenses.find((x: { desc: string }) => x.desc === 'Sample General Store #12');
