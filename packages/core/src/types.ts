@@ -112,9 +112,25 @@ export interface Budget {
   expenses: CardExpense[];
 }
 
+/**
+ * Money moved between two of the household's accounts this month. It counts against the "from" account's
+ * left-after-bills and adds to the "to" account's; balances aren't touched (they come from the bank).
+ * `done` is only a marker, like a paid bill.
+ */
+export interface Transfer extends RowMeta {
+  id: string;
+  fromId: string;
+  toId: string;
+  amount: number;
+  note: string;
+  recurring: boolean;
+  done: boolean;
+}
+
 export interface Month {
   accounts: Account[];
   bills: Bill[];
+  transfers: Transfer[];
   loans: Loan[];
   heloc: Heloc;
   budget: Budget;

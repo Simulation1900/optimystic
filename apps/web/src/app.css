@@ -124,3 +124,16 @@ dialog.sheet h3{font-size:20px}
   .cattable .minibar.phone-only{display:block;margin:3px 5px 0}
   .btable .lim{width:100%}
 }
+
+/* ---------- transfers ---------- */
+.transfers{margin:0 0 22px}
+.transfers h3{margin:0}
+.xrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line2);font-size:14px}
+.xrow:first-of-type{border-top:none}
+.xrow .xpath{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+.xrow .xpath .dot{display:inline-block}
+.xrow .arrowx{color:var(--muted)}
+.xrow .xmeta{flex-basis:100%;font-size:12px;color:var(--muted)}
+.xrow.done .xpath,.xrow.done .amt{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+.covertx{display:block;margin:-6px 0 10px;font-size:12.5px;padding:2px 0}
+.srow .mini+.mini{margin-left:-2px}

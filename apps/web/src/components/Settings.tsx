@@ -178,7 +178,7 @@ function Audit() {
   const [entries, setEntries] = useState<Array<{ id: number; at: string; user: string | null; table_name: string; row_key: string | null; month_key: string | null; action: string; before: Record<string, unknown> | null; after: Record<string, unknown> | null }>>([]);
   useEffect(() => { api<{ entries: typeof entries }>('GET', '/api/audit?limit=60').then(r => setEntries(r.entries)).catch(() => {}); }, []);
   const label = (e: typeof entries[number]) => String(e.after?.name ?? e.before?.name ?? e.after?.desc ?? e.before?.desc ?? e.row_key ?? '');
-  const what: Record<string, string> = { accounts: 'account', bills: 'bill', loans: 'loan', heloc: 'HELOC', heloc_draws: 'HELOC draw', budget_cards: 'card', budget_categories: 'category', card_expenses: 'expense', months: 'month' };
+  const what: Record<string, string> = { accounts: 'account', bills: 'bill', transfers: 'transfer', loans: 'loan', heloc: 'HELOC', heloc_draws: 'HELOC draw', budget_cards: 'card', budget_categories: 'category', card_expenses: 'expense', months: 'month' };
   return (
     <div className="hcard">
       <h3>Recent changes</h3>

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { acctStats, billsFor, cents, fmt, leftAfterMove, monthLabel, ordinal, r2, sum, uid, type Account, type Bill, type Month } from '@optimystic/core';
 import { dispatch, getState, toast, useDerived, useStore } from '../store';
 import { ask, Field, Modal, money2, usePhone, useTouch } from '../ui';
+import { coverWithTransfer, TransfersPanel } from './Transfers';
 
 const run = (f: () => void) => { try { f(); } catch (e) { toast((e as Error).message, true); } };
 
@@ -21,6 +22,7 @@ export function BillsTab() {
         <div className="stat"><div className="k">Card bills next month</div><div className="v num">{fmt(d.budget.projected)}</div><div className="sub">from the card budget</div></div>
       </section>
       <p className="hint">Put each bill on the account it’s paid from{useTouch() ? ' (tap Move to…)' : ' by dragging it'}. Enter each account’s current balance and the deposits still expected this month; every bill on an account counts against its balance. Ticking a bill paid is just a marker, except for the car, mortgage and HELOC bills, where it applies the payment to that loan.</p>
+      <TransfersPanel month={useStore(s => s.month)!} />
       <Board />
     </>
   );
@@ -95,8 +97,13 @@ function Column({ month, account: a, dnd }: { month: Month; account: Account | n
             <span className="lbl">Bills from here</span><span>{fmt(s.total)}</span>
             <span className="lbl">Marked paid</span><span>{fmt(s.paid)}</span>
             <span className="lbl">Not marked paid</span><span>{fmt(s.due)}</span>
+            {s.xferIn > 0 && <><span className="lbl">Transfers in</span><span className="pos" data-testid={`xin-${a.id}`}>+{fmt(s.xferIn)}</span></>}
+            {s.xferOut > 0 && <><span className="lbl">Transfers out</span><span data-testid={`xout-${a.id}`}>−{fmt(s.xferOut)}</span></>}
             <span className="leftlbl">Left after bills</span><span className={`left ${s.left < 0 ? 'neg' : 'pos'}`} data-testid={`left-${a.id}`}>{fmt(s.left)}</span>
           </div>
+          {s.left < 0 && month.accounts.length > 1 && (
+            <button type="button" className="linkbtn covertx" onClick={() => coverWithTransfer(month, a.id, r2(-s.left))}>Cover {fmt(-s.left)} with a transfer</button>
+          )}
           <div className="preview">{preview !== null ? `After drop: ${fmt(preview)} left` : ''}</div>
         </>
       ) : (

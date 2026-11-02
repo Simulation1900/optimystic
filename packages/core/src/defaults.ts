@@ -28,7 +28,7 @@ export const budgetDefault = (): Budget => ({
   expenses: []
 });
 
-export const emptyMonth = (): Month => ({ accounts: [], bills: [], loans: [], heloc: helocDefault(), budget: budgetDefault() });
+export const emptyMonth = (): Month => ({ accounts: [], bills: [], transfers: [], loans: [], heloc: helocDefault(), budget: budgetDefault() });
 
 export const newLoan = (id: string, valueAsOf: string): Loan => ({
   id, kind: 'car', name: 'New loan', lender: '', balance: 0, rate: 0, payment: 0, escrow: 0, original: 0, open: '', term: 0,
@@ -88,7 +88,11 @@ export function normalizeMonth(raw: Partial<Month> | undefined, key: string): Mo
       catChosen: typeof e.catChosen === 'boolean' ? e.catChosen : !(e.source === 'csv' || e.source === 'sync')
     }))
   };
-  const out: Month = { accounts, bills, loans, heloc, budget };
+  const ids = new Set(accounts.map(a => a.id));
+  const transfers = (Array.isArray(m.transfers) ? m.transfers : [])
+    .map(t => ({ ...t, id: s(t.id), fromId: s(t.fromId), toId: s(t.toId), amount: n(t.amount), note: s(t.note), recurring: !!t.recurring, done: !!t.done }))
+    .filter(t => ids.has(t.fromId) && ids.has(t.toId) && t.fromId !== t.toId);
+  const out: Month = { accounts, bills, transfers, loans, heloc, budget };
   if (m.meta) out.meta = m.meta;
   return out;
 }

@@ -28,7 +28,8 @@ connection comes back.
 These are the rules from the HTML planner, implemented in `packages/core` and tested in
 `packages/core/test/rules.test.ts`:
 
-1. **Account math.** Left after bills = balance + monthly deposit − every bill on that account, paid or not.
+1. **Account math.** Left after bills = balance + monthly deposit − every bill on that account, paid or not,
+   + transfers in − transfers out.
    Household left over = all balances + all deposits − all bills.
 2. **Paid is a marker.** Checking a bill paid never changes an account balance.
 3. **Except loan bills.** A bill linked to a loan, or named HELOC, applies its payment to that loan when checked.
@@ -54,11 +55,16 @@ These are the rules from the HTML planner, implemented in `packages/core` and te
     sign when purchases are negative, files each line in the month of its *transaction date*, and guesses the
     category: first from what the household filed that store under before (below), then the keyword rules. A line already logged isn't added again, but two identical real charges stay two. **Lines dated in a
     month the planner doesn't have yet are skipped and counted** ("3 skipped: create that month first").
-13. **Category memory.** When someone picks or changes an expense's category, the app remembers that store
+13. **Transfers.** Money moved between two of the household's accounts in a month counts against the "from" account's
+    left-after-bills and adds to the "to" account's. Balances aren't changed (they come from the bank) and household
+    left over doesn't move; "done" is only a marker. Monthly transfers are copied, not done, into each new month;
+    removing an account removes its transfers. A short account can be covered by a transfer from the account with
+    the most to spare, as well as by a HELOC draw.
+14. **Category memory.** When someone picks or changes an expense's category, the app remembers that store
     (order and store numbers stripped, so "AMAZON MKTPL*5P5JM4NC2" and "AMAZON MKTPL*629QL7H33" match) across
     every month and both logins. Quick-add and CSV import suggest that category before the keyword rules; the
     latest choice wins. CSV guesses that nobody changed don't teach it anything.
-14. **Old backups.** Amounts an earlier planner version subtracted from balances (`balanceApplied`) are added back
+15. **Old backups.** Amounts an earlier planner version subtracted from balances (`balanceApplied`) are added back
     on import.
 
 ### Notes on the spec's test figures

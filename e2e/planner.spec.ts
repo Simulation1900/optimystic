@@ -176,3 +176,38 @@ test('light and dark mode: the header toggle and the Settings choice, remembered
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
   expect(await bg()).toBe(light); // the test browser's device setting is light
 });
+
+test('transfers: cover a short account from one with money to spare, mark it done, carry a monthly one forward', async ({ page }) => {
+  await seeded(page);
+  // Savings is $600 short; its card offers a transfer prefilled from the account with the most to spare
+  await page.getByRole('button', { name: 'Cover $600.00 with a transfer' }).click();
+  const dlg = page.getByRole('dialog');
+  await expect(dlg.getByLabel('From')).toHaveValue('chk1');
+  await expect(dlg.getByLabel('To')).toHaveValue('sav1');
+  await expect(dlg.getByLabel('Amount')).toHaveValue('600.00');
+  await expect(dlg.getByTestId('transfer-preview')).toContainText('Sample Checking $721.76 left · Savings $0.00 left');
+  await dlg.getByLabel('Every month').check();
+  await dlg.getByRole('button', { name: 'Add transfer' }).click();
+  await expect(page.getByTestId('left-sav1')).toHaveText('$0.00');
+  await expect(page.getByTestId('left-chk1')).toHaveText('$721.76');
+  await expect(page.getByTestId('xout-chk1')).toHaveText('−$600.00');
+  await expect(page.getByTestId('left-over')).toHaveText('$1,176.14'); // money stays in the household
+  await page.getByLabel('Mark $600.00 transfer done').check();
+  await expect(page.locator('.syncpill')).toHaveText('Saved');
+  await expect(page.locator('.xrow.done')).toHaveCount(1);
+  // a one-off transfer from the header button
+  await page.getByRole('button', { name: 'Transfer', exact: true }).click();
+  await page.getByRole('dialog').getByLabel('From').selectOption('chk2');
+  await page.getByRole('dialog').getByLabel('To').selectOption('chk1');
+  await page.getByRole('dialog').getByLabel('Amount').fill('70');
+  await page.getByRole('dialog').getByRole('button', { name: 'Add transfer' }).click();
+  await expect(page.getByTestId('left-chk2')).toHaveText('$400.37');
+  // next month: only the monthly one comes along, not done
+  await page.getByRole('button', { name: 'New month' }).click();
+  await page.getByLabel('New month', { exact: true }).fill('2026-12');
+  await page.getByRole('button', { name: 'Create month' }).click();
+  await expect(page.locator('.monthnav h1')).toContainText('December 2026');
+  await expect(page.locator('.xrow')).toHaveCount(1);
+  await expect(page.locator('.xrow.done')).toHaveCount(0);
+  await expect(page.locator('.xrow')).toContainText('Every month');
+});

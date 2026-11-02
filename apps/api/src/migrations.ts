@@ -179,5 +179,28 @@ ALTER TABLE card_expenses ADD COLUMN cat_chosen boolean NOT NULL DEFAULT false;
 UPDATE card_expenses SET cat_chosen = true WHERE source = 'manual';
 CREATE INDEX card_expenses_chosen ON card_expenses(updated_at) WHERE cat_chosen;
 `
+  },
+  {
+    id: 3,
+    name: 'transfers',
+    sql: `
+-- Money moved between two accounts in a month (counts in left-after-bills; balances untouched).
+CREATE TABLE transfers (
+  month_key    text NOT NULL REFERENCES months(key) ON DELETE CASCADE,
+  id           text NOT NULL,
+  from_key     text NOT NULL,
+  to_key       text NOT NULL,
+  amount       numeric(12,2) NOT NULL CHECK (amount > 0),
+  note         text NOT NULL DEFAULT '',
+  recurring    boolean NOT NULL DEFAULT false,
+  done         boolean NOT NULL DEFAULT false,
+  sort         bigint NOT NULL DEFAULT nextval('row_sort_seq'),
+  version      integer NOT NULL DEFAULT 1,
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  updated_by   integer REFERENCES users(id) ON DELETE SET NULL,
+  PRIMARY KEY (month_key, id),
+  CHECK (from_key <> to_key)
+);
+`
   }
 ];

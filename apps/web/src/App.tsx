@@ -9,6 +9,7 @@ import { LoansTab } from './components/Loans';
 import { BudgetTab } from './components/Budget';
 import { SettingsTab } from './components/Settings';
 import { NewMonthDialog } from './components/NewMonth';
+import { openTransfer, TransferHost } from './components/Transfers';
 
 export function App() {
   const phase = useStore(s => s.phase);
@@ -94,6 +95,7 @@ function Shell() {
       </nav>
       {dlg === 'bill' && <BillDialog bill={null} onClose={() => setDlg(null)} />}
       {dlg === 'account' && <AccountDialog onClose={() => setDlg(null)} />}
+      <TransferHost />
       {dlg === 'newMonth' && <NewMonthDialog onClose={() => setDlg(null)} />}
     </div>
   );
@@ -144,6 +146,7 @@ function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void
         <span className={`syncpill ${!online ? 'offline' : saving || pending ? 'saving' : ''}`} role="status"><i />{status}</span>
         {key && tab === 'bills' && <>
           <button className="tbtn" onClick={onAddBill}>Add bill</button>
+          <button className="tbtn" onClick={() => openTransfer()}>Transfer</button>
           <button className="tbtn wide-only" onClick={onAddAccount}>Add account</button>
         </>}
         {key && <>

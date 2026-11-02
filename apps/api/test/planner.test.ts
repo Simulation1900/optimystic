@@ -222,3 +222,27 @@ describe('backups from the HTML planner with card expenses', () => {
     expect(j.catMemory['SAMPLE STORE']).toEqual({ catId: 'cat-groceries', catName: 'Groceries' });
   });
 });
+
+describe('transfers', () => {
+  it('add, mark done, edit and remove through the API, with the totals following', async () => {
+    let r = await c.post(`${K}/transfers`, { id: 'tr1', fromId: 'chk1', toId: 'sav1', amount: 600, note: 'card bill', recurring: true });
+    expect(r.statusCode).toBe(201);
+    let j = r.json();
+    expect(j.totals.accounts.sav1.left).toBe(0);
+    expect(j.totals.accounts.chk1).toMatchObject({ xferOut: 600, left: 721.76 });
+    expect(j.totals.left).toBe(1176.14);
+    expect(j.month.transfers[0]).toMatchObject({ id: 'tr1', amount: 600, recurring: true, done: false, version: 1, updatedBy: 'Nate' });
+    j = (await c.patch(`${K}/transfers/tr1`, { done: true, version: 1 })).json();
+    expect(j.month.transfers[0]).toMatchObject({ done: true, version: 2 });
+    expect((await c.patch(`${K}/transfers/tr1`, { amount: 5, version: 1 })).statusCode).toBe(409);
+    expect((await c.post(`${K}/transfers`, { fromId: 'chk1', toId: 'chk1', amount: 5 })).statusCode).toBe(400);
+    // carried into the next month, not done
+    const nm = (await c.post('/api/months', { key: '2026-12', from: '2026-11', balances: 'same', cardBills: 'keep' })).json();
+    expect(nm.month.transfers).toEqual([expect.objectContaining({ fromId: 'chk1', toId: 'sav1', amount: 600, done: false })]);
+    // in the export, and gone after removal
+    expect(JSON.parse((await c.get('/api/export')).body).months['2026-11'].transfers).toHaveLength(1);
+    j = (await c.del(`${K}/transfers/tr1`)).json();
+    expect(j.month.transfers).toEqual([]);
+    expect(j.totals.accounts.sav1.left).toBe(-600);
+  });
+});

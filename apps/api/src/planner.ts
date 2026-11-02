@@ -174,6 +174,15 @@ export function registerPlanner(app: FastifyInstance, db: Db, cfg: Config) {
   app.patch('/api/months/:key/bills/:id', opRoute(req => ({ type: 'bill.update', id: id(req), version: version(req), patch: patchOf(req) })));
   app.delete('/api/months/:key/bills/:id', opRoute(req => ({ type: 'bill.remove', id: id(req), version: version(req) })));
 
+  /* ---------- transfers between accounts ---------- */
+  app.post('/api/months/:key/transfers', opRoute(req => {
+    const b = body(req);
+    return { type: 'transfer.add', id: String(b.id || uid()), fromId: String(b.fromId ?? ''), toId: String(b.toId ?? ''), amount: b.amount as number,
+      note: b.note as string, recurring: !!b.recurring };
+  }, 201));
+  app.patch('/api/months/:key/transfers/:id', opRoute(req => ({ type: 'transfer.update', id: id(req), version: version(req), patch: patchOf(req) })));
+  app.delete('/api/months/:key/transfers/:id', opRoute(req => ({ type: 'transfer.remove', id: id(req), version: version(req) })));
+
   /* ---------- loans and HELOC ---------- */
   app.post('/api/months/:key/loans', opRoute(req => ({ type: 'loan.add', id: String(body(req).id || uid()) }), 201));
   app.patch('/api/months/:key/loans/:id', opRoute(req => ({ type: 'loan.update', id: id(req), version: version(req), patch: patchOf(req) })));

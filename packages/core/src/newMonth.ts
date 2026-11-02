@@ -32,6 +32,8 @@ export function buildNewMonth(src: Month, opts: NewMonthOptions, newId: () => st
     bills: s.bills
       .filter(b => b.recurring || opts.copyOneTime)
       .map(b => strip({ ...b, id: newId(), paid: false, helocApplied: null, loanApplied: null, balanceApplied: null })),
+    // Monthly transfers come along, not yet done; one-off transfers stay in their month.
+    transfers: (s.transfers || []).filter(t => t.recurring).map(t => strip({ ...t, id: newId(), done: false })),
     loans: s.loans.map(strip),
     heloc: { ...strip(s.heloc), draws: [] },
     budget: { baseline: s.budget.baseline, cards: s.budget.cards.map(strip), cats: s.budget.cats.map(strip), expenses: [] }

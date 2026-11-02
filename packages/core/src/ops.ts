@@ -1,4 +1,4 @@
-import type { Account, Bill, BudgetCard, BudgetCategory, CardExpense, Heloc, Loan, LoanKind, Month } from './types.js';
+import type { Account, Bill, Transfer, BudgetCard, BudgetCategory, CardExpense, Heloc, Loan, LoanKind, Month } from './types.js';
 import { cents, r2 } from './money.js';
 import { monthBounds } from './dates.js';
 import { nextColor, shortfalls as shortfallsFor } from './accounts.js';
@@ -19,6 +19,9 @@ export type Op =
   | { type: 'bill.add'; id: string; name: string; amount: number | string; accountId?: string | null; dueDay?: number | string | null; recurring?: boolean }
   | { type: 'bill.update'; id: string; version?: number; patch: { name?: string; amount?: number | string; accountId?: string | null; dueDay?: number | string | null; recurring?: boolean; paid?: boolean } }
   | { type: 'bill.remove'; id: string; version?: number }
+  | { type: 'transfer.add'; id: string; fromId: string; toId: string; amount: number | string; note?: string; recurring?: boolean }
+  | { type: 'transfer.update'; id: string; version?: number; patch: { fromId?: string; toId?: string; amount?: number | string; note?: string; recurring?: boolean; done?: boolean } }
+  | { type: 'transfer.remove'; id: string; version?: number }
   | { type: 'loan.add'; id: string }
   | { type: 'loan.update'; id: string; version?: number; patch: Partial<Record<keyof Loan, unknown>> }
   | { type: 'loan.remove'; id: string; version?: number }
@@ -42,12 +45,13 @@ export type Op =
 export type OpType = Op['type'];
 
 /** The table and row an op edits, for the server's version check. */
-export function opTarget(op: Op): { table: 'accounts' | 'bills' | 'loans' | 'heloc' | 'budget_cards' | 'budget_categories' | 'card_expenses' | 'months'; id: string } | null {
+export function opTarget(op: Op): { table: 'accounts' | 'bills' | 'transfers' | 'loans' | 'heloc' | 'budget_cards' | 'budget_categories' | 'card_expenses' | 'months'; id: string } | null {
   const [kind] = op.type.split('.');
   const id = 'id' in op ? op.id : '';
   switch (kind) {
     case 'account': return { table: 'accounts', id };
     case 'bill': return { table: 'bills', id };
+    case 'transfer': return { table: 'transfers', id };
     case 'loan': return { table: 'loans', id };
     case 'heloc': return op.type === 'heloc.update' ? { table: 'heloc', id: 'heloc' } : null;
     case 'budget': return { table: 'months', id: 'month' };
@@ -66,6 +70,7 @@ export function targetVersion(m: Month, op: Op): number | undefined {
   switch (t.table) {
     case 'accounts': return find(m.accounts);
     case 'bills': return find(m.bills);
+    case 'transfers': return find(m.transfers);
     case 'loans': return find(m.loans);
     case 'heloc': return m.heloc.version;
     case 'months': return m.meta?.version;
@@ -101,6 +106,16 @@ const fresh = (list: Array<{ id: string }>, id: string) => {
   if (list.some(x => x.id === id)) throw new PlannerError('That id is already used.', 409);
 };
 
+function setTransfer(m: Month, t: Transfer, v: { fromId?: string; toId?: string; amount?: unknown; note?: unknown }) {
+  const from = need(m.accounts.find(a => a.id === v.fromId), 'account to transfer from');
+  const to = need(m.accounts.find(a => a.id === v.toId), 'account to transfer to');
+  if (from.id === to.id) throw new PlannerError('Pick two different accounts.');
+  const amount = money(v.amount);
+  if (!(amount > 0)) throw new PlannerError('Enter an amount to transfer.');
+  t.fromId = from.id; t.toId = to.id; t.amount = amount;
+  t.note = String(v.note ?? '').trim().slice(0, 120);
+}
+
 /**
  * Apply one op to a month in place. `key` is the month ('2026-11'); it matters for HELOC interest
  * (days in the month) and loan value dates. Throws PlannerError on anything invalid.
@@ -128,7 +143,29 @@ export function applyOp(m: Month, key: string, op: Op): void {
     case 'account.remove': {
       const a = need(m.accounts.find(x => x.id === op.id), 'account');
       m.bills.forEach(b => { if (b.accountId === a.id) { unapplyBalance(m, b); b.accountId = null; } });
+      m.transfers = m.transfers.filter(t => t.fromId !== a.id && t.toId !== a.id);
       m.accounts = m.accounts.filter(x => x !== a);
+      return;
+    }
+
+    /* ---------- transfers ---------- */
+    case 'transfer.add': {
+      const id = checkId(op.id); fresh(m.transfers, id);
+      const t: Transfer = { id, fromId: '', toId: '', amount: 0, note: '', recurring: !!op.recurring, done: false };
+      setTransfer(m, t, { fromId: op.fromId, toId: op.toId, amount: op.amount, note: op.note });
+      m.transfers.push(t);
+      return;
+    }
+    case 'transfer.update': {
+      const t = need(m.transfers.find(x => x.id === op.id), 'transfer'), p = op.patch || {};
+      setTransfer(m, t, { fromId: p.fromId ?? t.fromId, toId: p.toId ?? t.toId, amount: 'amount' in p ? p.amount : t.amount, note: 'note' in p ? p.note : t.note });
+      if ('recurring' in p) t.recurring = !!p.recurring;
+      if ('done' in p) t.done = !!p.done;
+      return;
+    }
+    case 'transfer.remove': {
+      need(m.transfers.find(x => x.id === op.id), 'transfer');
+      m.transfers = m.transfers.filter(x => x.id !== op.id);
       return;
     }
 

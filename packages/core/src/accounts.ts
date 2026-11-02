@@ -8,16 +8,27 @@ export const billsFor = (m: Month, id: string | null): Bill[] =>
     .filter(b => (b.accountId || null) === id)
     .sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99) || a.name.localeCompare(b.name));
 
-export interface AccountStats { total: number; paid: number; due: number; dep: number; left: number }
+export interface AccountStats { total: number; paid: number; due: number; dep: number; xferIn: number; xferOut: number; left: number }
 
-/** Rule 1: left after bills = balance + monthly deposit − every bill on the account, paid or not. */
+/**
+ * Rule 1: left after bills = balance + monthly deposit − every bill on the account, paid or not
+ * (+ transfers in − transfers out, done or not).
+ */
 export function acctStats(m: Month, a: Account): AccountStats {
   const list = billsFor(m, a.id);
   const total = sum(list);
   const paid = sum(list.filter(b => b.paid));
   const dep = Number(a.deposit) || 0;
-  return { total, paid, due: r2(total - paid), dep, left: r2((Number(a.balance) || 0) + dep - total) };
+  const xfers = m.transfers || [];
+  const xferIn = sum(xfers.filter(t => t.toId === a.id));
+  const xferOut = sum(xfers.filter(t => t.fromId === a.id));
+  // Same formula as the HTML planner (which had no transfers), so figures match it to the cent.
+  return { total, paid, due: r2(total - paid), dep, xferIn, xferOut, left: r2((Number(a.balance) || 0) + dep - total + xferIn - xferOut) };
 }
+
+/** Accounts with money to spare after bills, most first: where a shortfall transfer could come from. */
+export const surplusAccounts = (m: Month, except?: string) =>
+  m.accounts.filter(a => a.id !== except).map(a => ({ account: a, left: acctStats(m, a).left })).filter(x => x.left > 0).sort((x, y) => y.left - x.left);
 
 export interface MonthTotals {
   cash: number; deposits: number; bills: number; paid: number; due: number;

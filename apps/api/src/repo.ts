@@ -2,7 +2,7 @@
 // Writes are diffs: load a month, apply an op with the core, then save only the rows that changed.
 import {
   clone, expenseFingerprint, learnCategories, normalizeMonth, type CategoryMemory,
-  type Account, type Bill, type BudgetCard, type BudgetCategory, type CardExpense, type Heloc, type HelocDraw, type Loan, type Month
+  type Account, type Bill, type Transfer, type BudgetCard, type BudgetCategory, type CardExpense, type Heloc, type HelocDraw, type Loan, type Month
 } from '@optimystic/core';
 import type { Tx } from './db.js';
 
@@ -23,6 +23,12 @@ export const LISTS: ListTable[] = [
     fields: [F('name', 'name', 'text'), F('amount', 'amount', 'num'), F('accountId', 'account_key', 'nullText'), F('recurring', 'recurring', 'bool'),
       F('dueDay', 'due_day', 'int'), F('paid', 'paid', 'bool'), F('loanApplied', 'loan_applied', 'json'), F('helocApplied', 'heloc_applied', 'json')],
     get: m => m.bills, set: (m, r) => { m.bills = r as Bill[]; }
+  },
+  {
+    table: 'transfers', keyCol: 'id',
+    fields: [F('fromId', 'from_key', 'text'), F('toId', 'to_key', 'text'), F('amount', 'amount', 'num'), F('note', 'note', 'text'),
+      F('recurring', 'recurring', 'bool'), F('done', 'done', 'bool')],
+    get: m => m.transfers, set: (m, r) => { m.transfers = r as Transfer[]; }
   },
   {
     table: 'loans', keyCol: 'loan_key',

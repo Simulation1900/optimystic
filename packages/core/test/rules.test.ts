@@ -13,7 +13,7 @@ const bill = (m: Month, id: string) => m.bills.find(b => b.id === id)!;
 describe('rule 1: account math', () => {
   it('left after bills = balance + deposit − every bill on the account, paid or not', () => {
     const m = sampleMonth();
-    expect(acctStats(m, acct(m, 'chk1'))).toEqual({ total: 758.24, paid: 120, due: 638.24, dep: 1500, left: 1321.76 });
+    expect(acctStats(m, acct(m, 'chk1'))).toEqual({ total: 758.24, paid: 120, due: 638.24, dep: 1500, xferIn: 0, xferOut: 0, left: 1321.76 });
     expect(acctStats(m, acct(m, 'chk2')).left).toBe(470.37);
     expect(acctStats(m, acct(m, 'sav1')).left).toBe(-600);
   });

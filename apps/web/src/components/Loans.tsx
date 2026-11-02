@@ -5,6 +5,7 @@ import {
 } from '@optimystic/core';
 import { dispatch, getState, toast, useStore } from '../store';
 import { ask, Field, money2, moneyOrBlank } from '../ui';
+import { coverWithTransfer } from './Transfers';
 
 const run = (f: () => void) => { try { f(); } catch (e) { toast((e as Error).message, true); } };
 const OPT_COLORS: Record<string, string> = { min: 'var(--faint)', draw: '#4f80a8', y5: '#c0834f', y3: '#5c8a72', custom: '#8a6fae' };
@@ -181,10 +182,11 @@ function Shortfalls({ month, c, mkey }: { month: Month; c: HelocCalc; mkey: stri
     <div className="hcard" id="hShort">
       <h3>Cover shortfalls</h3>
       {!short.length ? <div className="ok">✓ Every account covers its bills this month.</div> : <>
-        <div className="hnote">Even after expected deposits, these accounts can’t cover their unpaid bills. A draw moves money from the HELOC into the account and adds it to the loan balance.</div>
+        <div className="hnote">Even after expected deposits, these accounts can’t cover their unpaid bills. Transfer from an account with money to spare, or draw on the HELOC (that adds to the loan balance).</div>
         <div className="shortlist">{short.map(x => (
           <div className="srow" key={x.account.id}><span className="dot" style={{ background: x.account.color }} /><span className="sn">{x.account.name}</span>
             <span className="neg num">−{fmt(x.need)}</span>
+            <button className="mini" onClick={() => coverWithTransfer(month, x.account.id, x.need)} title="Move money from an account with some to spare">Transfer</button>
             <button className="mini" disabled={x.need > avail} onClick={() => run(() => dispatch({ type: 'heloc.cover', acctId: x.account.id, ids: [uid()] }))}>Draw</button></div>
         ))}</div>
         <div className="kv tot"><span>Total shortfall</span><b className="neg num">{fmt(totalNeed)}</b></div>
