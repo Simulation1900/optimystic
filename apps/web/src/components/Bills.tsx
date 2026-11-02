@@ -21,7 +21,7 @@ export function BillsTab() {
         <div className="stat"><div className="k">Unassigned</div><div className={`v num ${t.unassignedCount ? 'neg' : ''}`}>{t.unassignedCount ? fmt(t.unassigned) : '—'}</div></div>
         <div className="stat"><div className="k">Card bills next month</div><div className="v num">{fmt(d.budget.projected)}</div><div className="sub">from the card budget</div></div>
       </section>
-      <p className="hint">Put each bill on the account it’s paid from{useTouch() ? ' (tap Move to…)' : ' by dragging it'}. Enter each account’s current balance and the deposits still expected this month; every bill on an account counts against its balance. Ticking a bill paid is just a marker, except for the car, mortgage and HELOC bills, where it applies the payment to that loan.</p>
+      <p className="hint">Put each bill on the account it’s paid from{useTouch() ? ' (tap Move to…)' : ' by dragging it'}. Enter each account’s starting balance and the deposits still expected this month; every bill and transfer on an account counts against it. Ticking a bill paid is just a marker, except for the car, mortgage and HELOC bills, where it applies the payment to that loan.</p>
       <TransfersPanel month={useStore(s => s.month)!} />
       <Board />
     </>
@@ -82,9 +82,9 @@ function Column({ month, account: a, dnd }: { month: Month; account: Account | n
                 run(() => dispatch({ type: 'account.remove', id: a.id, version: a.version }));
             }}>×</button>
           </div>
-          <div className="balrow"><span className="k">Balance</span>
+          <div className="balrow"><span className="k">Starting balance</span>
             <label className="balinput num"><span>$</span>
-              <Field inputMode="decimal" aria-label={`${a.name} balance`} value={a.balance} format={money2}
+              <Field inputMode="decimal" aria-label={`${a.name} starting balance`} value={a.balance} format={money2}
                 onCommit={v => run(() => dispatch({ type: 'account.update', id: a.id, version: a.version, patch: { balance: cents(v) } }))} /></label>
           </div>
           <label className="deprow"><span className="k">Monthly deposits</span>
@@ -252,7 +252,7 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
         <label htmlFor="aName">Account name</label>
         <input type="text" id="aName" name="name" placeholder="e.g. Wells Fargo Savings" required autoFocus />
         <div className="two">
-          <div><label htmlFor="aBal">Current balance</label><input type="text" inputMode="decimal" id="aBal" name="balance" defaultValue="0" /></div>
+          <div><label htmlFor="aBal">Starting balance</label><input type="text" inputMode="decimal" id="aBal" name="balance" defaultValue="0" /></div>
           <div><label htmlFor="aDep">Monthly deposits</label><input type="text" inputMode="decimal" id="aDep" name="deposit" defaultValue="0" /></div>
         </div>
         <div className="dlgbtns">

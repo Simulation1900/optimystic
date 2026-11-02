@@ -102,8 +102,8 @@ test('a second login sees changes from the first after a refresh', async ({ page
   await p2.getByLabel('Password').fill('another long password');
   await p2.getByRole('button', { name: 'Sign in' }).click();
   await expect(p2.getByTestId('left-chk1')).toHaveText('$1,321.76');
-  await page.getByLabel('Sample Checking balance').fill('1000');
-  await page.getByLabel('Sample Checking balance').press('Enter');
+  await page.getByLabel('Sample Checking starting balance').fill('1000');
+  await page.getByLabel('Sample Checking starting balance').press('Enter');
   await expect(page.locator('.syncpill')).toHaveText('Saved');
   await p2.reload();
   await expect(p2.getByTestId('left-chk1')).toHaveText('$1,741.76');
