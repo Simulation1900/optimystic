@@ -15,6 +15,8 @@ export function BudgetTab() {
   const pending = useStore(s => (s.server?.key === key ? s.server.pending : undefined)) || [];
   const statements = useStore(s => (s.server?.key === key ? s.server.statements : undefined)) || [];
   const pendingTotal = r2(pending.reduce((t, p) => t + p.amount, 0));
+  const pend = usePendingSums(key);
+  const leftAfterPending = r2(st.left - pendingTotal);
   return (
     <section id="budget">
       <div className="hhead">
@@ -25,8 +27,8 @@ export function BudgetTab() {
       <div className="bsum">
         <div className="stat"><div className="k">Spent this month</div><div className="v num" data-testid="budget-spent">{fmt(st.spent)}</div><div className="sub">{b.expenses.length} expenses{pendingTotal ? <> · <span data-testid="pending-total">+{fmt(pendingTotal)} pending</span></> : null}</div></div>
         <div className="stat"><div className="k">Budget</div><div className="v num">{fmt(st.limit)}</div><div className="sub">{b.cats.length} categories</div></div>
-        <div className="stat"><div className="k">Left to spend</div><div className={`v num ${st.left < 0 ? 'neg' : ''}`}>{fmt(st.left)}</div>
-          <div className="sub">{pace > 0 && pace < 1 ? Math.round(pace * 100) + '% of the month gone' : pace >= 1 ? 'month is over' : 'month hasn’t started'}</div></div>
+        <div className="stat"><div className="k">Left to spend</div><div className={`v num ${leftAfterPending < 0 ? 'neg' : ''}`} data-testid="left-to-spend">{fmt(leftAfterPending)}</div>
+          <div className="sub">{pendingTotal ? `after ${fmt(pendingTotal)} pending · ` : ''}{pace > 0 && pace < 1 ? Math.round(pace * 100) + '% of the month gone' : pace >= 1 ? 'month is over' : 'month hasn’t started'}</div></div>
         <div className="stat"><div className="k">Card bills next month</div><div className="v num">{fmt(st.projected)}</div><div className="sub">spent + rest of each budget</div></div>
         <div className="stat"><div className="k">Vs. before the budget</div><div className={`v num ${saving >= 0 ? 'pos' : 'neg'}`}>{saving >= 0 ? '' : '−'}{fmt(Math.abs(saving))}</div>
           <div className="sub">a month, vs. <Field inputMode="decimal" aria-label="Typical monthly card spending before the budget" value={b.baseline} format={v => (Number(v) || 0).toFixed(0)}
@@ -35,13 +37,14 @@ export function BudgetTab() {
       </div>
       <div className="bcards">
         {st.cards.map(c => {
-          const pct = c.budget > 0 ? Math.min(100, c.spent / c.budget * 100) : 0;
+          const cp = pend.byCard[c.id] || 0;
           return (
             <div key={c.id} className="hcard bcard" style={{ ['--c' as string]: c.color || 'var(--accent)' }}>
               <div className="optname"><span className="dot" style={{ background: c.color || 'var(--accent)' }} />{c.name}</div>
               <div className="big num" style={{ marginTop: 8 }}>{fmt(c.spent)}</div>
               <div className="hnote">spent of {fmt(c.budget)} budgeted this month</div>
-              <div className={`pace ${c.spent > c.budget ? 'over' : ''}`}><i style={{ width: pct + '%' }} />{pace > 0 && pace < 1 && <b style={{ left: pace * 100 + '%' }} title="Where you'd be at an even pace" />}</div>
+              <SpendBar cls="pace" spent={c.spent} pending={cp} limit={c.budget}>{pace > 0 && pace < 1 && <b style={{ left: pace * 100 + '%' }} title="Where you'd be at an even pace" />}</SpendBar>
+              {cp > 0 && <div className="hnote" data-testid={`card-pending-${c.id}`}>+{fmt(cp)} pending</div>}
               {(() => {
                 const s = statements.find(x => x.cardId === c.id);
                 if (!s) return <>
@@ -87,24 +90,24 @@ export function BudgetTab() {
 
 function Categories({ month }: { month: Month }) {
   const b = month.budget, st = useDerived()!.budget;
+  const pend = usePendingSums(useStore(s => s.key));
   return (
     <div className="hcard">
       <h3>Categories</h3>
       <table className="btable cattable"><thead><tr><th>Category</th><th className="hide-sm">Card</th><th className="r">Limit</th><th className="r">Spent</th><th className="r">Left</th><th className="hide-sm" /><th /></tr></thead>
         <tbody>{b.cats.map(k => {
-          const sp = r2(st.byCat[k.id] || 0), lim = Number(k.limit) || 0, left = r2(lim - sp);
-          const pct = lim > 0 ? Math.min(100, sp / lim * 100) : (sp > 0 ? 100 : 0);
+          const sp = r2(st.byCat[k.id] || 0), pp = pend.byCat[k.id] || 0, lim = Number(k.limit) || 0, left = r2(lim - sp - pp);
           return (
             <tr key={k.id} data-cat={k.name}>
               <td><Field aria-label="Category name" value={k.name} onCommit={v => run(() => dispatch({ type: 'cat.update', id: k.id, version: k.version, patch: { name: v } }))} />
-                <div className={`minibar phone-only ${sp > lim ? 'over' : ''}`} aria-hidden="true"><i style={{ width: pct + '%' }} /></div></td>
+                <SpendBar cls="minibar phone-only" spent={sp} pending={pp} limit={lim} /></td>
               <td className="hide-sm"><select aria-label={`${k.name} card`} value={k.cardId} onChange={e => run(() => dispatch({ type: 'cat.update', id: k.id, version: k.version, patch: { cardId: e.target.value } }))}>
                 {b.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></td>
               <td className="r"><Field className="r lim" inputMode="decimal" aria-label={`${k.name} monthly limit`} value={lim} format={money2}
                 onCommit={v => run(() => dispatch({ type: 'cat.update', id: k.id, version: k.version, patch: { limit: v } }))} /></td>
-              <td className="r num">{fmt(sp)}</td>
+              <td className="r num">{fmt(sp)}{pp > 0 && <div className="pendnote" data-testid={`cat-pending-${k.id}`}>+{fmt(pp)} pending</div>}</td>
               <td className={`r num ${left < 0 ? 'neg' : ''}`}>{fmt(left)}</td>
-              <td className="hide-sm" style={{ width: '18%' }}><div className={`minibar ${sp > lim ? 'over' : ''}`} role="progressbar" aria-label={`${k.name} spent`} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: pct + '%' }} /></div></td>
+              <td className="hide-sm" style={{ width: '18%' }}><SpendBar spent={sp} pending={pp} limit={lim} label={`${k.name} spent`} /></td>
               <td><button className="x" title="Remove category" aria-label={`Remove ${k.name}`} onClick={async () => {
                 const n = b.expenses.filter(x => x.catId === k.id).length;
                 const other = b.cats.find(x => x.name.toLowerCase() === 'other' && x.id !== k.id);
@@ -114,7 +117,7 @@ function Categories({ month }: { month: Month }) {
             </tr>
           );
         })}</tbody>
-        <tfoot><tr><td><b>Total</b></td><td className="hide-sm" /><td className="r num"><b>{fmt(st.limit)}</b></td><td className="r num"><b>{fmt(st.spent)}</b></td><td className={`r num ${st.left < 0 ? 'neg' : ''}`}><b>{fmt(st.left)}</b></td><td className="hide-sm" /><td /></tr></tfoot>
+        <tfoot><tr><td><b>Total</b></td><td className="hide-sm" /><td className="r num"><b>{fmt(st.limit)}</b></td><td className="r num"><b>{fmt(st.spent)}</b>{pend.total > 0 && <div className="pendnote">+{fmt(pend.total)} pending</div>}</td><td className={`r num ${st.left - pend.total < 0 ? 'neg' : ''}`} data-testid="cats-left-total"><b>{fmt(r2(st.left - pend.total))}</b></td><td className="hide-sm" /><td /></tr></tfoot>
       </table>
       <button className="linkbtn" onClick={() => run(() => dispatch({ type: 'cat.add', id: 'cat-' + uid(), cardId: b.cards[0]?.id }))}>+ Add category</button>
     </div>
@@ -304,3 +307,28 @@ function SyncLine() {
 }
 
 const mkeyOf = (iso: string) => iso.slice(0, 7);
+
+/** Pending charges dated this month, summed by category and by card (they show in the bars, not in Spent). */
+function usePendingSums(key: string) {
+  const pending = useStore(s => (s.server?.key === key ? s.server.pending : undefined)) || [];
+  const byCat: Record<string, number> = {}, byCard: Record<string, number> = {};
+  pending.forEach(p => {
+    if (p.catId) byCat[p.catId] = r2((byCat[p.catId] || 0) + p.amount);
+    byCard[p.cardId] = r2((byCard[p.cardId] || 0) + p.amount);
+  });
+  return { byCat, byCard, total: r2(pending.reduce((t, p) => t + p.amount, 0)) };
+}
+
+/** A spend bar: posted charges solid, pending ones translucent after them, red once the two together pass the limit. */
+function SpendBar({ spent, pending, limit, cls = 'minibar', label, children }: { spent: number; pending: number; limit: number; cls?: string; label?: string; children?: React.ReactNode }) {
+  const pct = (v: number) => (limit > 0 ? Math.max(0, Math.min(100, v / limit * 100)) : (v > 0 ? 100 : 0));
+  const solid = pct(spent), both = pct(spent + pending);
+  return (
+    <div className={`${cls} ${spent + pending > limit + 0.004 ? 'over' : ''}`} role={label ? 'progressbar' : undefined} aria-label={label}
+      aria-valuenow={label ? Math.round(both) : undefined} aria-valuemin={label ? 0 : undefined} aria-valuemax={label ? 100 : undefined}>
+      <i style={{ width: solid + '%' }} />
+      {pending > 0 && <i className="pendseg" data-testid="pending-seg" style={{ left: solid + '%', width: Math.max(0, both - solid) + '%' }} title={`${fmt(pending)} pending`} />}
+      {children}
+    </div>
+  );
+}

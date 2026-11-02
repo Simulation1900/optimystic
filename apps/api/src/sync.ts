@@ -1,10 +1,10 @@
 // Card sync: pull the two credit cards' charges from SimpleFIN into the card budget.
 import type { FastifyInstance } from 'fastify';
-import { addMonths, cardItems, clone, fmt, importSynced, newlyOverBudget, syncMessage, todayISO, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
+import { addMonths, cardItems, clone, fmt, importSynced, newlyOverBudget, syncMessage, todayISO, withPending, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
 import { tx, type Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
-import { categoryMemory, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
+import { categoryMemory, listMonths, loadMonth, lockMonths, pendingCharges, saveMonth } from './repo.js';
 import { claim, decrypt, encrypt, fetchAccounts, SyncError } from './simplefin.js';
 import { sendPush } from './push.js';
 import { refreshStatementBills } from './planner.js';
@@ -39,17 +39,20 @@ export async function syncStatus(db: Db | { query: Db['query'] }, cfg: Config): 
 let running: Promise<SyncStatus> | null = null;
 
 /** One sync run. Runs never overlap; a second request waits for the one in progress. */
-export function runSync(db: Db, cfg: Config, userId: number | null): Promise<SyncStatus> {
-  if (!running) running = doSync(db, cfg, userId).finally(() => { running = null; });
+export function runSync(db: Db, cfg: Config, userId: number | null, since?: number): Promise<SyncStatus> {
+  if (!running) running = doSync(db, cfg, userId, since).finally(() => { running = null; });
   return running;
 }
 
-async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncStatus> {
+/** How far back a one-time backfill may reach (SimpleFIN keeps about 90 days). */
+export const MAX_BACKFILL_DAYS = 90;
+
+async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?: number): Promise<SyncStatus> {
   const conn = (await db.query('SELECT * FROM bank_connections ORDER BY id DESC LIMIT 1')).rows[0];
   if (!conn) throw new SyncError('Card sync isn’t connected.', 404);
   try {
     const access = decrypt(conn.access_url_enc, cfg.syncKey);
-    const since = Date.now() / 1000 - LOOKBACK_DAYS * 86400;
+    const since = sinceOverride ?? Date.now() / 1000 - LOOKBACK_DAYS * 86400;
     const data = await fetchAccounts(access, since, cfg.simplefinAllowHttp);
 
     // Remember every account SimpleFIN offers (new ones start unlinked) and its latest balance.
@@ -61,11 +64,14 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
     const links = (await db.query('SELECT sf_account_id, card_key FROM bank_links WHERE connection_id = $1 AND card_key IS NOT NULL', [conn.id])).rows;
 
     const total: SyncResult & { pending: number } = { added: 0, matched: 0, already: 0, skipped: 0, older: 0, months: [], pending: 0 };
-    const over: OverBudget[] = [];
+    let over: OverBudget[] = [];
     await tx(db, async c => {
       const all = await listMonths(c);
       const current = todayISO(cfg.tz).slice(0, 7);
       const template = all.includes(current) ? current : all[all.length - 1];
+      // The working month as it reads now, pending charges included, to see which categories this sync pushes over.
+      const shownBefore = async () => { const m = await loadMonth(c, template); return m ? withPending(m, await pendingCharges(c, template, m), template) : null; };
+      const pre = template ? await shownBefore() : null;
       for (const l of links) {
         const acct = data.accounts.find(a => String(a.id) === l.sf_account_id);
         if (!acct) continue;
@@ -86,16 +92,17 @@ async function doSync(db: Db, cfg: Config, userId: number | null): Promise<SyncS
         for (const k of keys) before[k] = (await loadMonth(c, k))!;
         const after = clone(before);
         const r = importSynced(after, items, l.card_key, template ? after[template] : undefined, undefined, await categoryMemory(c), all[0]);
-        for (const k of keys) {
-          // Over-budget alerts only for the working month (this month, or the latest one): an old month isn't news.
-          if (k === template) over.push(...newlyOverBudget(before[k], after[k]).filter(o => !over.some(x => x.catId === o.catId)));
-          await saveMonth(c, k, before[k], after[k], userId, 'card-sync');
-        }
+        for (const k of keys) await saveMonth(c, k, before[k], after[k], userId, 'card-sync');
         total.added += r.added; total.matched += r.matched; total.already += r.already; total.skipped += r.skipped; total.older = (total.older || 0) + (r.older || 0);
         total.months = [...new Set([...total.months, ...r.months])].sort();
       }
       // New charges change the statements the card bills come from (this month's and next month's).
-      if (total.added) await refreshStatementBills(c, total.months.flatMap(k => [k, addMonths(k, 1)]), userId);
+      // Pending charges change projected statements too, so refresh the working month's bills on every sync.
+      await refreshStatementBills(c, [...total.months.flatMap(k => [k, addMonths(k, 1)]), ...(template ? [template] : [])], userId);
+      // Over-budget alerts only for the working month (this month, or the latest one), pending charges counted:
+      // a category alerts when posted + pending first crosses its limit, not again when a pending charge posts.
+      const post = template ? await shownBefore() : null;
+      if (pre && post) over = newlyOverBudget(pre, post);
     });
     const result = { ...total, message: syncMessage(total) + (total.pending ? ` ${total.pending} pending charge${total.pending === 1 ? '' : 's'} will come in once posted.` : '') };
     // SimpleFIN reports bank problems (like a login that needs fixing) in `errors` while still returning what it can.
@@ -175,9 +182,18 @@ export function registerSync(app: FastifyInstance, db: Db, cfg: Config) {
     return syncStatus(db, cfg);
   });
 
+  // Sync now. With { since: 'YYYY-MM-DD' } it also brings in older charges (a one-time backfill, up to 90 days).
   app.post('/api/sync/run', async (req, reply) => {
     const user = requireUser(req, reply); if (!user) return;
-    try { return await runSync(db, cfg, user.id); } catch (e) { return fail(reply, e); }
+    const sinceIso = String((req.body as { since?: string } | undefined)?.since || '');
+    let since: number | undefined;
+    if (sinceIso) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(sinceIso)) return reply.code(400).send({ error: 'Pick a date.' });
+      since = Date.parse(sinceIso + 'T00:00:00Z') / 1000 - 86400; // a day's margin for time zones
+      const floor = Date.now() / 1000 - MAX_BACKFILL_DAYS * 86400;
+      if (since < floor) return reply.code(400).send({ error: `SimpleFIN only keeps about ${MAX_BACKFILL_DAYS} days. Use a CSV download for anything older.` });
+    }
+    try { return await runSync(db, cfg, user.id, since); } catch (e) { return fail(reply, e); }
   });
 
   // Owner only: forget the access URL (also revoke it in the SimpleFIN Bridge dashboard).

@@ -1,4 +1,4 @@
-import type { BudgetStats, CategoryMemory, Month, MonthTotals, Statement } from '@optimystic/core';
+import type { BudgetStats, CategoryMemory, Month, MonthTotals, PendingCharge, Statement } from '@optimystic/core';
 
 export interface User { id: number; name: string; email: string; role: 'owner' | 'member' }
 export interface MonthPayload {
@@ -13,7 +13,7 @@ export interface MonthPayload {
   /** Card sync (SimpleFIN) at a glance. */
   sync?: { connected: boolean; lastSyncAt: string | null; lastError: string | null };
   /** Pending card charges from the latest sync dated this month: shown, not counted until they post. */
-  pending?: Array<{ id: string; cardId: string; date: string; desc: string; amount: number }>;
+  pending?: PendingCharge[];
   /** Each card with a closing day: the statement that closes this month (its bill). */
   statements?: Statement[];
 }

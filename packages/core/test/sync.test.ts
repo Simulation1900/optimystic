@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { budgetStats, buildNewMonth, cardItems, importCardItems, importSynced, isoInZone, parseCardCSV, syncMessage, type SfTransaction } from '../src/index.js';
+import { budgetStats, buildNewMonth, newlyOverBudget, withPending, cardItems, importCardItems, importSynced, isoInZone, parseCardCSV, syncMessage, type SfTransaction } from '../src/index.js';
 import { fixture, sampleState, seqId } from './helpers.js';
+import { applyOp } from '../src/index.js';
 
 // 2026-10-20 12:00 Chicago = 17:00 UTC
 const at = (iso: string, h = 17) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10), h) / 1000;
@@ -77,5 +78,23 @@ describe('card sync', () => {
       { 'SAMPLE GENERAL STORE': { catId: 'cat-groceries', catName: 'Groceries' } });
     expect(r.added).toBe(1);
     expect(st.months['2026-11'].budget.expenses[0].catId).toBe('cat-groceries');
+  });
+});
+
+describe('pending charges count like posted ones where they should', () => {
+  it('withPending adds them for this month only; crossing a limit by pending alerts, posting it doesn’t re-alert', () => {
+    const st = sampleState();
+    const m = st.months['2026-11'];
+    applyOp(m, '2026-11', { type: 'expense.add', id: 'e1', date: '2026-11-02', desc: 'TST* GRILL', amount: 90, catId: 'cat-dining-out', cardId: 'card-chase' });
+    const pend = [{ id: 'p1', cardId: 'card-chase', date: '2026-11-03', desc: 'TST* GRILL', amount: 20, catId: 'cat-dining-out' },
+                  { id: 'p2', cardId: 'card-chase', date: '2026-10-30', desc: 'old', amount: 5, catId: 'cat-dining-out' }];
+    const shown = withPending(m, pend, '2026-11');
+    expect(budgetStats(shown).byCat['cat-dining-out']).toBe(110);
+    expect(budgetStats(m).byCat['cat-dining-out']).toBe(90);  // the month itself is untouched
+    expect(newlyOverBudget(withPending(m, [], '2026-11'), shown).map(o => o.name)).toEqual(['Dining out']);
+    // the pending charge posts: same total, no second alert
+    const posted = structuredClone(m);
+    applyOp(posted, '2026-11', { type: 'expense.add', id: 'e2', date: '2026-11-03', desc: 'TST* GRILL', amount: 20, catId: 'cat-dining-out', cardId: 'card-chase' });
+    expect(newlyOverBudget(shown, withPending(posted, [], '2026-11'))).toEqual([]);
   });
 });

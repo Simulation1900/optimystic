@@ -230,6 +230,10 @@ function CardSync({ isOwner }: { isOwner: boolean }) {
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
+  const today = useStore(s => s.today), months = useStore(s => s.months);
+  const minSince = new Date(Date.now() - 89 * 86400000).toISOString().slice(0, 10);
+  // Default: the start of the planner's first month, or as far back as SimpleFIN goes.
+  const [since, setSince] = useState(() => { const first = months[0] ? `${months[0]}-01` : ''; return first > minSince ? first : minSince; });
   useEffect(() => { api<SyncStatus>('GET', '/api/sync').then(setSt).catch(() => {}); }, []);
   async function call(label: string, method: string, url: string, body?: unknown) {
     setBusy(label); setErr('');
@@ -279,6 +283,13 @@ function CardSync({ isOwner }: { isOwner: boolean }) {
             if (await ask('Disconnect card sync? Charges already brought in stay. Also revoke the connection in the SimpleFIN Bridge dashboard.', 'Disconnect')) call('disconnect', 'DELETE', '/api/sync');
           }}>Disconnect</button>}
         </div>
+        <div className="hdiv" />
+        <div className="settings-label">Bring in earlier charges</div>
+        <p className="hnote" style={{ margin: '0 0 8px' }}>Each sync looks back 10 days. To fill in a month that started earlier (up to about 90 days back), pick the first date you need. Charges already brought in, by sync or CSV, aren’t added again; dates in a month the planner doesn’t have are left out.</p>
+        <form className="drawrow" style={{ gridTemplateColumns: '1fr auto' }} onSubmit={e => { e.preventDefault(); if (since) call('backfill', 'POST', '/api/sync/run', { since }); }}>
+          <input type="date" aria-label="Bring in charges since" value={since} min={minSince} max={today} onChange={e => setSince(e.target.value)} required />
+          <button className="mini" disabled={!!busy || !since}>{busy === 'backfill' ? 'Bringing in…' : 'Bring in'}</button>
+        </form>
       </>}
     </div>
   );

@@ -182,10 +182,13 @@ year). It never reads or changes the checking and savings accounts.
 3. In the app, Settings → Card sync, paste the token (owner only; a token works once), then choose which SimpleFIN
    account is which card. Anything left on "Ignore" is never read into the planner.
 
+Settings → Card sync → "Bring in earlier charges" backfills from a chosen date (up to about 90 days back).
+
 It syncs at 6 AM and 6 PM (`SYNC_TIMES=06:00,18:00`, household time zone) and on Sync now, asking for the last 10
 days so late-posting charges are caught. Charges are filed by transaction date like CSV import, with the category
-memory and keyword rules. Pending charges are shown greyed at the top of the month's expenses (and as "+ $X pending"
-under Spent) but aren't counted until they post, card payments are skipped, returns come in as
+memory and keyword rules. Pending charges are shown greyed at the top of the month's expenses and as a translucent segment
+in the category and card bars, with a guessed category; they count in Left to spend, in over-budget alerts and in
+projected card bills, but not in Spent (which is posted charges only) until they post, card payments are skipped, returns come in as
 credits. A charge already brought in by CSV (same card and amount, same store, within 5 days) is matched rather
 than added, and two identical real charges stay two. When SimpleFIN reports a problem (a bank needing you to sign
 in again, a revoked connection) the Card budget tab and Settings show it; nothing else changes and CSV import still

@@ -2,12 +2,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   PlannerError, applyOp, budgetStats, buildNewMonth, clone, helocCalc, importCardItems, isMonthKey, monthTotals, parseCardCSV,
   readBackup, shortfalls, stateCheck, targetVersion, toBackup, todayISO, uid, BackupError,
-  type BalanceMode, type CardBillMode, type Month, type Op, type PlannerState, addMonths, applyStatementBills, statementsFor
+  type BalanceMode, type CardBillMode, type Month, type Op, type PlannerState, addMonths, applyStatementBills, statementsFor, withPending
 } from '@optimystic/core';
 import { tx, type Db, type Tx } from './db.js';
 import type { Config } from './config.js';
 import { requireUser, type User } from './auth.js';
-import { auditNote, categoryMemory, createMonth, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
+import { auditNote, categoryMemory, createMonth, pendingCharges, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
 
 /** Just enough for the app's banner and the Card budget line. */
 async function syncSummary(c: Tx | Db) {
@@ -17,17 +17,15 @@ async function syncSummary(c: Tx | Db) {
 
 async function statementsOf(c: Tx | Db, key: string, month: Month) {
   if (!month.budget.cards.some(x => x.closeDay)) return [];
-  const prev = await loadMonth(c, addMonths(key, -1));
-  const months: Record<string, Month> = { [key]: month };
-  if (prev) months[addMonths(key, -1)] = prev;
-  return statementsFor(months, key, todayISO(TZ));
+  return statementsFor(await withNeighbourPending(c, key, month), key, todayISO(TZ));
 }
 
-/** Pending card charges from the latest sync that fall in this month (shown, not counted). */
-async function pendingFor(c: Tx | Db, key: string) {
-  const r = await c.query(`SELECT id, card_key, to_char(date, 'YYYY-MM-DD') AS date, description, amount FROM card_pending
-    WHERE to_char(date, 'YYYY-MM') = $1 ORDER BY date DESC, description`, [key]);
-  return r.rows.map(x => ({ id: x.id as string, cardId: x.card_key as string, date: x.date as string, desc: x.description as string, amount: Number(x.amount) }));
+/** This month and the month before, each with its pending card charges counted (for statements and their bills). */
+async function withNeighbourPending(c: Tx | Db, key: string, month: Month): Promise<Record<string, Month>> {
+  const prevKey = addMonths(key, -1), prev = await loadMonth(c, prevKey);
+  const months: Record<string, Month> = { [key]: withPending(month, await pendingCharges(c, key, month), key) };
+  if (prev) months[prevKey] = withPending(prev, await pendingCharges(c, prevKey, prev), prevKey);
+  return months;
 }
 
 class HttpError extends Error {
@@ -46,11 +44,12 @@ export async function refreshStatementBills(c: Tx, keys: string[], userId: numbe
   for (const key of [...new Set(keys)].sort()) {
     const before = await loadMonth(c, key);
     if (!before || !before.budget.cards.some(x => x.closeDay)) continue;
-    const prev = await loadMonth(c, addMonths(key, -1));
+    // Pending charges count in a projected statement; the bills are set on the real month, never the copy.
+    const shown = await withNeighbourPending(c, key, before);
+    if (!applyStatementBills(shown, key, today).length) continue;
     const after = clone(before);
-    const months: Record<string, Month> = { [key]: after };
-    if (prev) months[addMonths(key, -1)] = prev;
-    if (applyStatementBills(months, key, today).length) await saveMonth(c, key, before, after, userId, 'statement');
+    shown[key].bills.forEach(b => { const x = after.bills.find(y => y.id === b.id); if (x) x.amount = b.amount; });
+    await saveMonth(c, key, before, after, userId, 'statement');
   }
 }
 
@@ -67,7 +66,7 @@ export async function monthPayload(c: Tx | Db, key: string, m?: Month) {
     heloc: { thisMonth: h.thisMonth, io: h.io, repayPmt: h.repayPmt, shortfall: shortfalls(month).reduce((t, x) => t + x.need, 0) },
     catMemory: await categoryMemory(c),
     sync: await syncSummary(c),
-    pending: await pendingFor(c, key),
+    pending: month ? await pendingCharges(c, key, month) : [],
     statements: month ? await statementsOf(c, key, month) : []
   };
 }

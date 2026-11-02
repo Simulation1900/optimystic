@@ -144,3 +144,9 @@ dialog.sheet h3{font-size:20px}
 .pendrow td{color:var(--muted);font-style:italic}
 .pendrow .tag{font-style:normal;margin-left:6px}
 .cardtable .day{width:46px}
+/* pending charges: a translucent segment after the posted ones */
+.minibar,.pace{position:relative}
+.minibar i.pendseg,.pace i.pendseg{position:absolute;top:0;bottom:0;background:var(--accent);opacity:.35;border-radius:0}
+.pace i.pendseg{background:var(--c,var(--accent))}
+.minibar.over i.pendseg,.pace.over i.pendseg{background:var(--bad)}
+.pendnote{font-size:11px;color:var(--muted);font-style:italic}

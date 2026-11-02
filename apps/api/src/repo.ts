@@ -1,7 +1,7 @@
 // Moves months between the planner's document shape (packages/core types) and the normalized tables.
 // Writes are diffs: load a month, apply an op with the core, then save only the rows that changed.
 import {
-  clone, expenseFingerprint, learnCategories, normalizeMonth, type CategoryMemory,
+  clone, expenseFingerprint, guessCat, learnCategories, normalizeMonth, type CategoryMemory, type PendingCharge,
   type Account, type Bill, type Transfer, type BudgetCard, type BudgetCategory, type CardExpense, type Heloc, type HelocDraw, type Loan, type Month
 } from '@optimystic/core';
 import type { Tx } from './db.js';
@@ -227,4 +227,15 @@ export async function categoryMemory(c: Tx | { query: Tx['query'] }): Promise<Ca
     FROM card_expenses e LEFT JOIN budget_categories k ON k.month_key = e.month_key AND k.cat_key = e.cat_key
     WHERE e.cat_chosen ORDER BY e.updated_at, e.date, e.sort`);
   return learnCategories(r.rows.map(x => ({ desc: x.description as string, catId: x.cat_key as string, catName: x.cat_name as string })));
+}
+
+/** Pending card charges from the latest sync dated in this month, each with a guessed category. */
+export async function pendingCharges(c: Tx | { query: Tx['query'] }, key: string, month?: Month): Promise<PendingCharge[]> {
+  const r = await c.query(`SELECT id, card_key, to_char(date, 'YYYY-MM-DD') AS date, description, amount FROM card_pending
+    WHERE to_char(date, 'YYYY-MM') = $1 ORDER BY date DESC, description`, [key]);
+  if (!r.rowCount) return [];
+  const m = month || await loadMonth(c, key);
+  const memory = await categoryMemory(c);
+  return r.rows.map(x => ({ id: x.id as string, cardId: x.card_key as string, date: x.date as string, desc: x.description as string, amount: Number(x.amount),
+    catId: m ? guessCat(x.description as string, m.budget, memory)?.id : undefined }));
 }

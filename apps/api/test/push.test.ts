@@ -64,6 +64,19 @@ describe('notifications', () => {
     expect(sent).toEqual([]); // already over: no repeat
   });
 
+  it('a pending charge that crosses a limit alerts; when it posts, no second alert', async () => {
+    sent.length = 0;
+    txns = [{ id: 'g1', posted: day('2026-11-04'), transacted_at: day('2026-11-03'), amount: '-30.00', description: 'WALGREENS #1' },
+            { id: 'g2', posted: 0, pending: true, transacted_at: day('2026-11-05'), amount: '-60.00', description: 'WALGREENS #2' }];
+    await c.post('/api/sync/run');
+    expect(sent.map(s => s.msg.title)).toEqual(['Health & pharmacy is over budget', 'Health & pharmacy is over budget']); // both devices
+    expect(sent[0].msg.body).toBe('$90.00 of $85.00 this month (Chase).');
+    sent.length = 0;
+    txns[1] = { id: 'g2-posted', posted: day('2026-11-06'), transacted_at: day('2026-11-05'), amount: '-60.00', description: 'WALGREENS #2' };
+    await c.post('/api/sync/run');
+    expect(sent).toEqual([]);
+  });
+
   it('tells only the owner when card sync starts having a problem, once', async () => {
     sent.length = 0;
     errors = ['Chase: please sign in again.'];

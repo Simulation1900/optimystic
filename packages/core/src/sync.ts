@@ -97,3 +97,19 @@ export const syncMessage = (r: SyncResult) =>
   + (r.matched ? ` ${r.matched} already imported by CSV.` : '')
   + (r.skipped ? ` ${r.skipped} skipped (no planner month for their date; start that month to bring them in).` : '')
   + (r.older ? ` ${r.older} older charge${r.older === 1 ? '' : 's'} from before the planner’s first month left out.` : '');
+
+/** A pending card charge as the planner shows it: with a guessed category, not yet filed. */
+export interface PendingCharge { id: string; cardId: string; date: string; desc: string; amount: number; catId?: string }
+
+/**
+ * A copy of a month with its pending charges added as if they'd posted. Used wherever pending charges should
+ * count: the spend bars, left to spend, over-budget alerts and projected card bills. Never saved.
+ */
+export function withPending(m: Month, pending: PendingCharge[], key?: string): Month {
+  const out = clone(m);
+  for (const p of pending) {
+    if (key && p.date.slice(0, 7) !== key) continue;
+    out.budget.expenses.push({ id: 'pending-' + p.id, date: p.date, desc: p.desc, amount: p.amount, catId: p.catId || '', cardId: p.cardId, source: 'sync', catChosen: false });
+  }
+  return out;
+}

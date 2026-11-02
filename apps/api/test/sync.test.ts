@@ -21,7 +21,7 @@ beforeAll(async () => {
       const ok = req.headers.authorization === 'Basic ' + Buffer.from('user1:secret/pw').toString('base64');
       if (!ok || revoked) { res.writeHead(403).end(); return; }
       const u = new URL(req.url, 'http://x');
-      expect(Number(u.searchParams.get('start-date'))).toBeGreaterThan(now() - 11 * 86400);
+      expect(Number(u.searchParams.get('start-date'))).toBeGreaterThan(now() - 92 * 86400);
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ errors, accounts: [
         { id: 'ACT-chase', name: 'Sapphire ...9954', currency: 'USD', balance: '-1234.56', 'balance-date': now(), org: { name: 'Chase' }, transactions: txns['ACT-chase'] || [] },
@@ -101,7 +101,7 @@ describe('card sync (SimpleFIN)', () => {
     expect(nov.month.budget.expenses.some((e: any) => /SHOULD NOT APPEAR|PENDING|Payment/.test(e.desc))).toBe(false);
     expect(nov.sync).toMatchObject({ connected: true, lastError: null });
     // the pending charge is shown with the month, but isn't in any total
-    expect(nov.pending).toEqual([{ id: 'c3', cardId: 'card-chase', date: '2026-11-06', desc: 'PENDING CAFE', amount: 7 }]);
+    expect(nov.pending).toEqual([{ id: 'c3', cardId: 'card-chase', date: '2026-11-06', desc: 'PENDING CAFE', amount: 7, catId: 'cat-dining-out' }]);
     expect(nov.month.budget.expenses.some((e: any) => e.desc === 'PENDING CAFE')).toBe(false);
     // the pending charge posts: it comes in once, and nothing else doubles
     (txns['ACT-chase'] as any[])[2] = { id: 'c3', posted: day('2026-11-07'), transacted_at: day('2026-11-06'), amount: '-7.00', description: 'PENDING CAFE' };
@@ -125,6 +125,15 @@ describe('card sync (SimpleFIN)', () => {
     revoked = false;
     s = (await c.post('/api/sync/run')).json();
     expect(s.lastError).toBeNull();
+  });
+
+  it('backfills from a chosen date (up to 90 days), without doubling anything', async () => {
+    const tooOld = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+    expect((await c.post('/api/sync/run', { since: tooOld })).json().error).toMatch(/90 days/);
+    expect((await c.post('/api/sync/run', { since: 'soon' })).statusCode).toBe(400);
+    const recent = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const r = (await c.post('/api/sync/run', { since: recent })).json();
+    expect(r.lastResult).toMatchObject({ added: 0 });
   });
 
   it('disconnect forgets the access URL', async () => {

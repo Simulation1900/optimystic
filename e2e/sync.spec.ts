@@ -42,6 +42,11 @@ test('connect card sync, link the cards, and see the charges in the card budget'
   await expect(page.getByTestId('budget-spent')).toHaveText('$120.00');
   await expect(page.getByTestId('pending-total')).toHaveText('+$8.25 pending');
   await expect(page.getByTestId('pending-row')).toContainText('COFFEE SHOP');
+  // pending charges read in the bars and in what's left to spend
+  await expect(page.getByTestId('left-to-spend')).toHaveText('$2,612.75');
+  await expect(page.getByTestId('card-pending-card-chase')).toHaveText('+$8.25 pending');
+  await expect(page.locator('[data-testid="pending-seg"]').first()).toBeAttached();
+  if (!(page.viewportSize()!.width <= 700)) await expect(page.getByTestId('cat-pending-cat-coffee-snacks')).toHaveText('+$8.25 pending');
   await page.getByTestId('sync-line').getByRole('button', { name: 'Sync now' }).click();
   await expect(page.locator('.toast')).toContainText('No new charges.');
   await expect(page.getByTestId('budget-spent')).toHaveText('$120.00');
