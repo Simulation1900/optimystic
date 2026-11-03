@@ -216,9 +216,10 @@ function Appearance() {
 interface SyncStatus {
   connected: boolean; lastSyncAt: string | null; lastError: string | null; canConnect: boolean; schedule: string[];
   lastResult: { message: string } | null;
-  accounts: Array<{ id: string; name: string; org: string; balance: number | null; cardKey: string | null }>;
+  accounts: Array<{ id: string; name: string; org: string; balance: number | null; balanceDate: string | null; newestCharge: string | null; stale: boolean; cardKey: string | null }>;
 }
 
+const dayLabel = (iso: string) => new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 const ago = (iso: string | null) => (iso ? new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'never');
 const clock = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
 
@@ -268,7 +269,10 @@ function CardSync({ isOwner }: { isOwner: boolean }) {
         <div className="settings-label" style={{ marginTop: 14 }}>Which card is which</div>
         {st.accounts.map(a => (
           <div className="userrow" key={a.id}>
-            <span className="sn"><b>{a.name}</b><br /><span className="hnote">{a.org}{a.balance !== null ? ` · balance ${fmt(a.balance)}` : ''}</span></span>
+            <span className="sn"><b>{a.name}</b><br /><span className="hnote">{a.org}{a.balance !== null ? ` · balance ${fmt(a.balance)}` : ''}</span>
+              {a.cardKey && (a.newestCharge || a.balanceDate) && <><br /><span className={a.stale ? 'hwarn' : 'hnote'} data-testid={`fresh-${a.id}`} style={{ fontSize: 12 }}>
+                {a.newestCharge ? `Newest charge ${dayLabel(a.newestCharge)}` : ''}{a.newestCharge && a.balanceDate ? ' · ' : ''}{a.balanceDate ? `bank data as of ${dayLabel(a.balanceDate)}` : ''}
+                {a.stale ? '. Nothing newer has come through: check this connection in SimpleFIN Bridge.' : ''}</span></>}</span>
             <select aria-label={`${a.name} card`} value={a.cardKey || ''} disabled={!isOwner || !!busy}
               onChange={e => call('link', 'POST', '/api/sync/links', { links: { [a.id]: e.target.value || null } })}>
               <option value="">Ignore</option>

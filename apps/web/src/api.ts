@@ -11,7 +11,7 @@ export interface MonthPayload {
   /** What each merchant was filed under before, across all months. */
   catMemory?: CategoryMemory;
   /** Card sync (SimpleFIN) at a glance. */
-  sync?: { connected: boolean; lastSyncAt: string | null; lastError: string | null };
+  sync?: { connected: boolean; lastSyncAt: string | null; lastError: string | null; behind?: Array<{ name: string; cardId: string; newestCharge: string }> };
   /** Pending card charges from the latest sync dated this month: shown, not counted until they post. */
   pending?: PendingCharge[];
   /** Each card with a closing day: the statement that closes this month (its bill). */

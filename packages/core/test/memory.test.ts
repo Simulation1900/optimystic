@@ -91,3 +91,23 @@ describe('newlyOverBudget', () => {
     expect(newlyOverBudget(m0, m4)).toEqual([]);   // exactly at the limit isn't over
   });
 });
+
+import { cleanDesc } from '../src/index.js';
+describe('BoA’s padded descriptions', () => {
+  it('keep the store name, so the same store matches across cities, sync and CSV', () => {
+    expect(cleanDesc('KROGER #884              NASHVILLE    TN ')).toBe('KROGER #884');
+    expect(cleanDesc('SPROUTS FARMERS MAR      FRANKLIN     TN ')).toBe('SPROUTS FARMERS MAR');
+    expect(cleanDesc('Exxon FLASH  MARKET #1')).toBe('Exxon FLASH MARKET #1');   // Chase: two spaces aren't a column gap
+    expect(merchantKey('KROGER #514              MADISON      TN ')).toBe(merchantKey('KROGER #884  '));
+  });
+});
+
+import { emptyMonth } from '../src/index.js';
+describe('re-importing after descriptions were tidied', () => {
+  it('a line stored with the old spacing still counts as already logged', () => {
+    const months = { '2026-10': emptyMonth() };
+    months['2026-10'].budget.expenses.push({ id: 'old', date: '2026-10-20', desc: 'SQ *MADTOWN COFFEE  LLC.', amount: 30.93, catId: 'cat-other', cardId: 'card-chase', source: 'csv' });
+    const r = importCardItems(months, [{ date: '2026-10-20', desc: 'SQ *MADTOWN COFFEE LLC.', amount: 30.93 }], 'card-chase', undefined, () => 'n');
+    expect(r).toMatchObject({ added: 0, dup: 1 });
+  });
+});

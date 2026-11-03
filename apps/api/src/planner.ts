@@ -7,12 +7,19 @@ import {
 import { tx, type Db, type Tx } from './db.js';
 import type { Config } from './config.js';
 import { requireUser, type User } from './auth.js';
+import { isStale } from './sync.js';
 import { auditNote, cardOnlyKeys, categoryMemory, createMonth, ensureCardOnlyMonths, pendingCharges, deleteMonth, listMonths, loadMonth, lockMonths, saveMonth } from './repo.js';
 
 /** Just enough for the app's banner and the Card budget line. */
 async function syncSummary(c: Tx | Db) {
-  const r = (await c.query('SELECT last_sync_at, last_error FROM bank_connections ORDER BY id DESC LIMIT 1')).rows[0];
-  return r ? { connected: true, lastSyncAt: r.last_sync_at ? new Date(r.last_sync_at).toISOString() : null, lastError: r.last_error as string | null } : { connected: false, lastSyncAt: null, lastError: null };
+  const r = (await c.query('SELECT id, last_sync_at, last_error FROM bank_connections ORDER BY id DESC LIMIT 1')).rows[0];
+  if (!r) return { connected: false, lastSyncAt: null, lastError: null, behind: [] };
+  const links = (await c.query('SELECT name, org, card_key, newest_charge FROM bank_links WHERE connection_id = $1 AND card_key IS NOT NULL', [r.id])).rows;
+  return {
+    connected: true, lastSyncAt: r.last_sync_at ? new Date(r.last_sync_at).toISOString() : null, lastError: r.last_error as string | null,
+    // Linked cards whose newest charge is several days old: the bank's data may be behind.
+    behind: links.filter(isStale).map(l => ({ name: (l.org as string) || (l.name as string), cardId: l.card_key as string, newestCharge: new Date(l.newest_charge).toISOString() }))
+  };
 }
 
 async function statementsOf(c: Tx | Db, key: string, month: Month) {

@@ -11,12 +11,17 @@ import { refreshStatementBills } from './planner.js';
 
 const LOOKBACK_DAYS = 10; // late-posting charges are caught on the next runs
 
+/** A linked card whose newest charge is this many days old is flagged: its bank connection may be behind. */
+export const STALE_DAYS = 3;
+export const isStale = (l: { newest_charge?: string | Date | null; card_key?: string | null }) =>
+  !!l.card_key && !!l.newest_charge && Date.now() - new Date(l.newest_charge).getTime() > STALE_DAYS * 86400000;
+
 export interface SyncStatus {
   connected: boolean;
   lastSyncAt: string | null;
   lastError: string | null;
   lastResult: (SyncResult & { message: string; pending: number }) | null;
-  accounts: Array<{ id: string; name: string; org: string; balance: number | null; balanceDate: string | null; cardKey: string | null }>;
+  accounts: Array<{ id: string; name: string; org: string; balance: number | null; balanceDate: string | null; newestCharge: string | null; stale: boolean; cardKey: string | null }>;
   schedule: string[];
   canConnect: boolean;
 }
@@ -30,7 +35,8 @@ export async function syncStatus(db: Db | { query: Db['query'] }, cfg: Config): 
     lastError: c?.last_error ?? null,
     lastResult: c?.last_result ?? null,
     accounts: links.map(l => ({ id: l.sf_account_id, name: l.name, org: l.org, balance: l.balance === null ? null : Number(l.balance),
-      balanceDate: l.balance_date ? new Date(l.balance_date).toISOString() : null, cardKey: l.card_key })),
+      balanceDate: l.balance_date ? new Date(l.balance_date).toISOString() : null,
+      newestCharge: l.newest_charge ? new Date(l.newest_charge).toISOString() : null, stale: isStale(l), cardKey: l.card_key })),
     schedule: cfg.syncTimes,
     canConnect: !!cfg.syncKey
   };
@@ -60,6 +66,9 @@ async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?
       await db.query(`INSERT INTO bank_links (connection_id, sf_account_id, name, org, balance, balance_date) VALUES ($1,$2,$3,$4,$5,to_timestamp($6))
         ON CONFLICT (connection_id, sf_account_id) DO UPDATE SET name = EXCLUDED.name, org = EXCLUDED.org, balance = EXCLUDED.balance, balance_date = EXCLUDED.balance_date`,
         [conn.id, String(a.id), String(a.name || ''), String(a.org?.name || a.org?.domain || ''), a.balance === undefined ? null : Number(a.balance) || 0, a['balance-date'] || null]);
+      const newest = Math.max(0, ...(a.transactions || []).map(t => Number(t.transacted_at || t.posted) || 0));
+      // Only ever move forward: a short sync window with no charges shouldn't make data look older.
+      if (newest) await db.query('UPDATE bank_links SET newest_charge = GREATEST(coalesce(newest_charge, to_timestamp(0)), to_timestamp($3)) WHERE connection_id = $1 AND sf_account_id = $2', [conn.id, String(a.id), newest]);
     }
     const links = (await db.query('SELECT sf_account_id, card_key FROM bank_links WHERE connection_id = $1 AND card_key IS NOT NULL', [conn.id])).rows;
 

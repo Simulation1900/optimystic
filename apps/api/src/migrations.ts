@@ -298,5 +298,13 @@ ALTER TABLE months ADD COLUMN card_only boolean NOT NULL DEFAULT false;
 -- What SimpleFIN sent for the linked cards on the last sync (for the owner's "download sync details").
 ALTER TABLE bank_connections ADD COLUMN last_feed jsonb;
 `
+  },
+  {
+    id: 10,
+    name: 'card data freshness',
+    sql: `
+-- The newest charge SimpleFIN has sent for each account, to show when a bank's data is behind.
+ALTER TABLE bank_links ADD COLUMN newest_charge timestamptz;
+`
   }
 ];

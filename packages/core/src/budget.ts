@@ -19,12 +19,20 @@ export const CAT_RULES: Array<[string, RegExp]> = [
 ];
 
 /**
+ * Tidy a card description: BoA pads the store name, city and state into columns ("KROGER #884      NASHVILLE   TN"),
+ * so keep what comes before the first wide gap (3+ spaces), then collapse any remaining runs of spaces.
+ */
+export function cleanDesc(desc: string): string {
+  return String(desc || '').trim().split(/\s{3,}/)[0].replace(/\s+/g, ' ').trim();
+}
+
+/**
  * The merchant part of a card description, so one store matches across purchases:
  * "AMAZON MKTPL*5P5JM4NC2" → "AMAZON MKTPL", "KROGER #884" → "KROGER", "SHELL OIL 12826796000" → "SHELL OIL",
  * "72823 - MILLENNIUM PARK" → "MILLENNIUM PARK". Leading processor tags like "TST*" and "SQ *" are kept.
  */
 export function merchantKey(desc: string): string {
-  return String(desc || '').toUpperCase()
+  return cleanDesc(desc).toUpperCase()
     .replace(/\*\s*(?=[A-Z0-9]*\d)[A-Z0-9]{4,}\b/g, ' ')   // order ids after a * (must contain a digit)
     .replace(/#\s*\d+/g, ' ')                                // store numbers
     .replace(/\b\d{3,}\b/g, ' ')                              // long numbers anywhere

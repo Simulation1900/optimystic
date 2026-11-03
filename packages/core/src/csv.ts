@@ -1,7 +1,7 @@
 import type { CardExpense, Month } from './types.js';
 import { r2 } from './money.js';
 import { monthLabel } from './dates.js';
-import { guessCat, type CategoryMemory } from './budget.js';
+import { cleanDesc, guessCat, type CategoryMemory } from './budget.js';
 import { clone, uid } from './ids.js';
 
 /** RFC 4180-ish CSV: quoted fields, doubled quotes, CRLF or LF. Blank rows are dropped. */
@@ -50,7 +50,7 @@ export function parseCardCSV(text: string): CsvParse {
   };
   const raw: Array<{ date: string; desc: string; raw: number }> = [];
   rows.slice(hi + 1).forEach(r => {
-    const date = isoOf(r[cDate]), desc = String(r[cDesc] || '').trim();
+    const date = isoOf(r[cDate]), desc = cleanDesc(String(r[cDesc] || ''));
     if (!date || !desc) return;
     if ((cType >= 0 && /payment/i.test(r[cType] || '')) || PAY.test(desc)) return;
     const v = cAmt >= 0 ? num(r[cAmt]) : (num(r[cDebit]) ? -Math.abs(num(r[cDebit])) : Math.abs(num(r[cCredit])));
@@ -89,7 +89,8 @@ export function importCardItems(months: Record<string, Month>, items: CsvItem[],
     }
     const fp = expenseFingerprint({ ...i, cardId });
     counts[fp] = (counts[fp] || 0) + 1;
-    const have = b.expenses.filter(e => e.date === i.date && e.desc === i.desc && Math.abs(Number(e.amount) - i.amount) < 0.005 && e.cardId === cardId).length;
+    // Compare tidied descriptions, so lines imported before descriptions were tidied still count as logged.
+    const have = b.expenses.filter(e => e.date === i.date && cleanDesc(e.desc) === i.desc && Math.abs(Number(e.amount) - i.amount) < 0.005 && e.cardId === cardId).length;
     if (have >= counts[fp]) { dup++; continue; }
     const c = guessCat(i.desc, b, memory);
     const exp: CardExpense = { id: newId(), date: i.date, desc: i.desc, amount: i.amount, catId: c ? c.id : '', cardId, source: 'csv', catChosen: false };

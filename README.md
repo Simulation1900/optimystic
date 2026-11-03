@@ -190,7 +190,10 @@ It syncs at 6 AM and 6 PM (`SYNC_TIMES=06:00,18:00`, household time zone) and on
 days so late-posting charges are caught. Charges are filed by transaction date like CSV import, with the category
 memory and keyword rules. A charge the bank still flags pending more than 3 days after its posting date is treated as posted, and a pending
 entry whose posted charge has already arrived (same card, amount and store within 7 days) is dropped; both happen
-with BoA through SimpleFIN. Settings → Card sync → Download sync details shows exactly what SimpleFIN sent.
+with BoA through SimpleFIN. Settings → Card sync → Download sync details shows exactly what SimpleFIN sent. Each linked card shows its newest charge and
+when the bank's data was last updated; a card whose newest charge is 3+ days old is flagged there and on the Card
+budget tab, since its bank connection may be behind (BoA often is). BoA's padded descriptions ("KROGER #884
+   NASHVILLE   TN") are trimmed to the store name, for sync and CSV alike.
 Pending charges are shown greyed at the top of the month's expenses and as a translucent segment
 in the category and card bars, with a guessed category; they count in Left to spend, in over-budget alerts and in
 projected card bills, but not in Spent (which is posted charges only) until they post, card payments are skipped, returns come in as

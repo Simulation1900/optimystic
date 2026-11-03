@@ -2,7 +2,7 @@
 import type { CardExpense, Month } from './types.js';
 import { r2 } from './money.js';
 import { monthLabel } from './dates.js';
-import { guessCat, merchantKey, type CategoryMemory } from './budget.js';
+import { cleanDesc, guessCat, merchantKey, type CategoryMemory } from './budget.js';
 import { PAY } from './csv.js';
 import { clone, uid } from './ids.js';
 
@@ -58,7 +58,7 @@ export function cardItems(txns: SfTransaction[], tz?: string, now = Date.now() /
   const items: SyncItem[] = [], pendingItems: SyncItem[] = [];
   for (const t of txns) {
     const raw = Number(t.amount) || 0;
-    const desc = String(t.description || t.payee || '').trim();
+    const desc = cleanDesc(String(t.description || t.payee || ''));
     if (!raw || !desc) continue;
     if (PAY.test(desc) || (raw > 0 && /\bPAYMENT\b/i.test(desc))) { if (!(t.pending || !t.posted)) payments++; continue; }
     const item = { id: String(t.id), date: isoInZone(t.transacted_at || t.posted || now, tz), desc, amount: r2(-raw) };

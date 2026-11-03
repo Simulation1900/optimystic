@@ -299,8 +299,9 @@ function SyncLine() {
   }
   const when = sync.lastSyncAt ? new Date(sync.lastSyncAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'not yet';
   return (
-    <div className={`banner ${sync.lastError ? 'warnbanner' : ''}`} data-testid="sync-line">
-      <span className="grow">{sync.lastError ? <><b>Card sync needs attention.</b> {sync.lastError}</> : <>Cards synced {when}.</>}</span>
+    <div className={`banner ${sync.lastError || sync.behind?.length ? 'warnbanner' : ''}`} data-testid="sync-line">
+      <span className="grow">{sync.lastError ? <><b>Card sync needs attention.</b> {sync.lastError}</> : <>Cards synced {when}.</>}
+        {!!sync.behind?.length && <span data-testid="sync-behind"> {sync.behind.map(b => `${b.name}’s newest charge is from ${new Date(b.newestCharge).toLocaleDateString([], { month: 'short', day: 'numeric' })}`).join('; ')}, so its bank data may be behind (charges you see in its app may not be here yet).</span>}</span>
       <button className="mini" onClick={run} disabled={busy}>{busy ? 'Syncing…' : 'Sync now'}</button>
     </div>
   );

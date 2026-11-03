@@ -220,3 +220,27 @@ describe('card sync backfill before the first month', () => {
   });
 
 });
+
+describe('a card whose bank data is behind', () => {
+  it('is flagged in Card sync and on the month once its newest charge is 3+ days old', async () => {
+    const ctx3 = await start({ SYNC_KEY: 'k'.repeat(64), SIMPLEFIN_ALLOW_HTTP: '1', SYNC_TIMES: '' });
+    const c3 = await withSample(ctx3);
+    claimed = false; revoked = false; errors = [];
+    const save = txns;
+    const d = (daysAgo: number) => Math.floor(Date.now() / 1000) - daysAgo * 86400;
+    txns = {
+      'ACT-boa': [{ id: 'old', posted: d(5), transacted_at: d(6), amount: '-36.36', description: 'KROGER FUEL #9884        NASHVILLE    TN ' }],
+      'ACT-chase': [{ id: 'new', posted: 0, pending: true, transacted_at: d(0), amount: '-5.00', description: 'COFFEE' }]
+    };
+    await c3.post('/api/sync/connect', { token: token() });
+    await c3.post('/api/sync/links', { links: { 'ACT-boa': 'card-boa', 'ACT-chase': 'card-chase' } });
+    const s = (await c3.post('/api/sync/run')).json();
+    expect(s.accounts.find((a: any) => a.id === 'ACT-boa')).toMatchObject({ stale: true });
+    expect(s.accounts.find((a: any) => a.id === 'ACT-chase')).toMatchObject({ stale: false });
+    expect(s.accounts.find((a: any) => a.id === 'ACT-check').stale).toBe(false);  // unlinked accounts are never flagged
+    const m = (await c3.get('/api/months/2026-11')).json();
+    expect(m.sync.behind).toEqual([{ name: 'Bank of America', cardId: 'card-boa', newestCharge: expect.any(String) }]);
+    txns = save;
+    await stop(ctx3);
+  });
+});
