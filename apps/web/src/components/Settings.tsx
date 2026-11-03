@@ -282,6 +282,7 @@ function CardSync({ isOwner }: { isOwner: boolean }) {
           {isOwner && <button className="tbtn danger" disabled={!!busy} onClick={async () => {
             if (await ask('Disconnect card sync? Charges already brought in stay. Also revoke the connection in the SimpleFIN Bridge dashboard.', 'Disconnect')) call('disconnect', 'DELETE', '/api/sync');
           }}>Disconnect</button>}
+          {isOwner && st.lastSyncAt && <a className="tbtn" href="/api/sync/details" download style={{ textDecoration: 'none' }} title="Exactly what SimpleFIN sent for the linked cards on the last sync (no passwords). Useful when a bank behaves oddly.">Download sync details</a>}
         </div>
         <div className="hdiv" />
         <div className="settings-label">Bring in earlier charges</div>

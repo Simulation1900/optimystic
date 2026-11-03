@@ -98,3 +98,27 @@ describe('pending charges count like posted ones where they should', () => {
     expect(newlyOverBudget(shown, withPending(posted, [], '2026-11'))).toEqual([]);
   });
 });
+
+import { unsettledPending } from '../src/index.js';
+describe('pending charges that never seem to post', () => {
+  it('a charge still flagged pending 3+ days after its posting date counts as posted', () => {
+    const now = at('2026-11-10');
+    const r = cardItems([
+      tx('b1', '2026-11-01', 'KROGER #12', '-40.00', { pending: true, posted: at('2026-11-02') }),   // 8 days after posting: posted
+      tx('b2', '2026-11-08', 'SHELL OIL 3', '-20.00', { pending: true, posted: at('2026-11-09') }),   // 1 day: still pending
+      tx('b3', '2026-11-09', 'TARGET 7', '-15.00', { pending: true, posted: 0 })
+    ], undefined, now);
+    expect(r.items.map(i => i.id)).toEqual(['b1']);
+    expect(r.pendingItems.map(i => i.id)).toEqual(['b2', 'b3']);
+  });
+
+  it('a pending entry left in the feed after its posted twin arrived is dropped, once per posted charge', () => {
+    const pending = [
+      { id: 'p1', date: '2026-11-03', desc: 'KROGER #12', amount: 40 },
+      { id: 'p2', date: '2026-11-03', desc: 'KROGER #12', amount: 40 },   // a second real charge
+      { id: 'p3', date: '2026-11-03', desc: 'SHELL', amount: 25 }
+    ];
+    const posted = [{ date: '2026-11-04', desc: 'KROGER #12', amount: 40 }, { date: '2026-10-20', desc: 'SHELL', amount: 25 }];
+    expect(unsettledPending(pending, posted).map(p => p.id)).toEqual(['p2', 'p3']);
+  });
+});

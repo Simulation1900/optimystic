@@ -290,5 +290,13 @@ ALTER TABLE budget_cards ADD COLUMN due_day smallint CHECK (due_day BETWEEN 1 AN
 -- Months made only to hold older card charges (no accounts, bills or loans).
 ALTER TABLE months ADD COLUMN card_only boolean NOT NULL DEFAULT false;
 `
+  },
+  {
+    id: 9,
+    name: 'card sync details',
+    sql: `
+-- What SimpleFIN sent for the linked cards on the last sync (for the owner's "download sync details").
+ALTER TABLE bank_connections ADD COLUMN last_feed jsonb;
+`
   }
 ];

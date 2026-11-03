@@ -136,6 +136,37 @@ describe('card sync (SimpleFIN)', () => {
     expect(r.lastResult).toMatchObject({ added: 0 });
   });
 
+  it('BoA-style feeds: a pending entry whose posted twin arrived is dropped; a stale pending flag is filed', async () => {
+    errors = []; revoked = false;
+    const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
+    const d = (daysAgo: number) => Math.floor(Date.now() / 1000) - daysAgo * 86400;
+    txns = { 'ACT-boa': [
+      { id: 'bp1', posted: 0, pending: true, transacted_at: d(5), amount: '-33.33', description: 'TARGET 0123' },        // left in the feed...
+      { id: 'bq1', posted: d(4), transacted_at: d(5), amount: '-33.33', description: 'TARGET 0123' },                    // ...after this posted
+      { id: 'bs1', posted: d(6), pending: true, transacted_at: d(7), amount: '-12.00', description: 'PUBLIX 55' },      // flag never cleared
+      { id: 'bn1', posted: 0, pending: true, transacted_at: d(1), amount: '-8.00', description: 'SHELL OIL 9' }         // really pending
+    ] };
+    const s = (await c.post('/api/sync/run')).json();
+    expect(s.lastResult.pending).toBe(1);
+    const keys = [...new Set([iso(1), iso(5), iso(7)].map(x => x.slice(0, 7)))];
+    const pend = (await Promise.all(keys.map(async k => (await c.get(`/api/months/${k}`)).json().pending || []))).flat();
+    expect(pend.map((p: any) => p.id)).toEqual(['bn1']);
+    const exps = (await Promise.all(keys.map(async k => (await c.get(`/api/months/${k}`)).json().month?.budget.expenses || []))).flat();
+    const ids = exps.map((e: any) => e.externalId).filter(Boolean);
+    const have = (await c.get('/api/months')).json().months as string[];
+    if (keys.every(k => have.includes(k))) {   // the dates are relative to today; check when the planner has those months
+      expect(ids).toEqual(expect.arrayContaining(['bq1', 'bs1']));
+      expect(ids).not.toContain('bp1');
+      expect(ids).not.toContain('bn1');
+    }
+    // what SimpleFIN sent is downloadable by the owner, without credentials
+    const det = await c.get('/api/sync/details');
+    expect(det.headers['content-disposition']).toMatch(/card-sync-details-/);
+    const j = JSON.parse(det.body);
+    expect(j.accounts.find((a: any) => a.card === 'card-boa').transactions.map((t: any) => t.id)).toEqual(['bp1', 'bq1', 'bs1', 'bn1']);
+    expect(det.body).not.toContain('secret');
+  });
+
   it('disconnect forgets the access URL', async () => {
     const s = (await c.del('/api/sync')).json();
     expect(s).toMatchObject({ connected: false, accounts: [] });

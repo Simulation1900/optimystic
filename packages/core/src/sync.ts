@@ -20,6 +20,26 @@ export interface SfTransaction {
 
 export interface SyncItem { id: string; date: string; desc: string; amount: number }
 
+/** A charge still flagged pending this many days after its posting date is treated as posted. */
+export const STALE_PENDING_DAYS = 3;
+
+/**
+ * Pending charges that have already posted: the bank sometimes keeps the pending entry in the feed after the posted
+ * one arrives under a new id. A pending charge is settled by a posted charge (or one already in the planner) on the
+ * same card for the same amount at the same store within 7 days; each posted charge settles at most one.
+ */
+export function unsettledPending(pending: SyncItem[], posted: Array<{ date: string; desc: string; amount: number }>): SyncItem[] {
+  const used = new Set<number>();
+  return pending.filter(p => {
+    const k = merchantKey(p.desc);
+    const i = posted.findIndex((x, j) => !used.has(j) && Math.round(x.amount * 100) === Math.round(p.amount * 100)
+      && dayDiff(x.date, p.date) <= 7 && (x.desc === p.desc || merchantKey(x.desc) === k));
+    if (i < 0) return true;
+    used.add(i);
+    return false;
+  });
+}
+
 /** Epoch seconds → 'YYYY-MM-DD' in the household's time zone. */
 export const isoInZone = (epoch: number, tz = 'America/Chicago'): string => {
   const p = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(epoch * 1000));
@@ -42,8 +62,10 @@ export function cardItems(txns: SfTransaction[], tz?: string, now = Date.now() /
     if (!raw || !desc) continue;
     if (PAY.test(desc) || (raw > 0 && /\bPAYMENT\b/i.test(desc))) { if (!(t.pending || !t.posted)) payments++; continue; }
     const item = { id: String(t.id), date: isoInZone(t.transacted_at || t.posted || now, tz), desc, amount: r2(-raw) };
-    // Pending charges are shown but not filed: their id and amount often change when they post.
-    if (t.pending || !t.posted) pendingItems.push(item); else items.push(item);
+    // Pending charges are shown but not filed: their id and amount often change when they post. Some banks (BoA
+    // through MX) leave the pending flag on after a charge has posted; a posting date over 3 days old wins.
+    const stalePendingFlag = t.pending && t.posted > 0 && now - t.posted > STALE_PENDING_DAYS * 86400;
+    if ((t.pending && !stalePendingFlag) || !t.posted) pendingItems.push(item); else items.push(item);
   }
   return { items, pending: pendingItems.length, payments, pendingItems };
 }

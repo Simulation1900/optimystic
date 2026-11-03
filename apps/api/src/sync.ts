@@ -1,6 +1,6 @@
 // Card sync: pull the two credit cards' charges from SimpleFIN into the card budget.
 import type { FastifyInstance } from 'fastify';
-import { addMonths, cardItems, clone, fmt, monthLabel, importSynced, newlyOverBudget, syncMessage, todayISO, withPending, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
+import { addMonths, cardItems, clone, fmt, monthLabel, unsettledPending, importSynced, newlyOverBudget, syncMessage, todayISO, withPending, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
 import { tx, type Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
@@ -66,6 +66,7 @@ async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?
     const total: SyncResult & { pending: number } = { added: 0, matched: 0, already: 0, skipped: 0, older: 0, months: [], pending: 0 };
     let over: OverBudget[] = [];
     let created: string[] = [];
+    const feed: unknown[] = [];
     await tx(db, async c => {
       // A backfill reaching before the first planner month makes card-only months for those charges.
       if (sinceOverride !== undefined) created = await ensureCardOnlyMonths(c, todayISO(cfg.tz, new Date((sinceOverride + 86400) * 1000)).slice(0, 7), userId);
@@ -78,8 +79,17 @@ async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?
       for (const l of links) {
         const acct = data.accounts.find(a => String(a.id) === l.sf_account_id);
         if (!acct) continue;
-        const { items, pending, pendingItems } = cardItems(acct.transactions || [], cfg.tz);
-        total.pending += pending;
+        const { items, pendingItems: rawPending } = cardItems(acct.transactions || [], cfg.tz);
+        feed.push({ account: acct.name, org: acct.org?.name || acct.org?.domain || '', card: l.card_key,
+          transactions: (acct.transactions || []).map(t => ({ id: t.id, posted: t.posted, transacted_at: t.transacted_at ?? null, pending: t.pending ?? null, amount: t.amount, description: t.description })) });
+        // Drop pending entries whose posted charge has already arrived (in this feed or in the planner).
+        const nearby: Array<{ date: string; desc: string; amount: number }> = [...items];
+        for (const k of new Set(rawPending.flatMap(p => [addMonths(p.date.slice(0, 7), -1), p.date.slice(0, 7), addMonths(p.date.slice(0, 7), 1)]))) {
+          if (!all.includes(k)) continue;
+          (await loadMonth(c, k))!.budget.expenses.filter(e => e.cardId === l.card_key && !items.some(i => i.id === e.externalId)).forEach(e => nearby.push(e));
+        }
+        const pendingItems = unsettledPending(rawPending, nearby);
+        total.pending += pendingItems.length;
         await c.query('DELETE FROM card_pending WHERE connection_id = $1 AND card_key = $2', [conn.id, l.card_key]);
         for (const p of pendingItems) {
           await c.query('INSERT INTO card_pending (connection_id, id, card_key, date, description, amount) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING',
@@ -111,7 +121,7 @@ async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?
       + (created.length ? ` Made ${created.map(monthLabel).join(', ')} for card spending only.` : '') };
     // SimpleFIN reports bank problems (like a login that needs fixing) in `errors` while still returning what it can.
     const err = data.errors.length ? `SimpleFIN: ${data.errors.join(' ')}` : (!links.length ? 'No card is linked yet. Choose which SimpleFIN account is which card.' : null);
-    await db.query('UPDATE bank_connections SET last_sync_at = now(), last_error = $2, last_result = $3 WHERE id = $1', [conn.id, err, JSON.stringify(result)]);
+    await db.query('UPDATE bank_connections SET last_sync_at = now(), last_error = $2, last_result = $3, last_feed = $4 WHERE id = $1', [conn.id, err, JSON.stringify(result), JSON.stringify({ at: new Date().toISOString(), since: new Date(since * 1000).toISOString(), accounts: feed })]);
     await alertOverBudget(db, cfg, over);
     if (err && err !== conn.last_error && data.errors.length) await alertSyncProblem(db, cfg, err);
   } catch (e) {
@@ -198,6 +208,16 @@ export function registerSync(app: FastifyInstance, db: Db, cfg: Config) {
       if (since < floor) return reply.code(400).send({ error: `SimpleFIN only keeps about ${MAX_BACKFILL_DAYS} days. Use a CSV download for anything older.` });
     }
     try { return await runSync(db, cfg, user.id, since); } catch (e) { return fail(reply, e); }
+  });
+
+  // Owner only: what SimpleFIN sent for the linked cards on the last sync (no credentials), to check bank quirks.
+  app.get('/api/sync/details', async (req, reply) => {
+    const user = requireUser(req, reply); if (!user) return;
+    if (user.role !== 'owner') return reply.code(403).send({ error: 'Only the owner can download sync details.' });
+    const r = (await db.query('SELECT last_feed FROM bank_connections ORDER BY id DESC LIMIT 1')).rows[0];
+    if (!r?.last_feed) return reply.code(404).send({ error: 'Nothing synced yet.' });
+    reply.header('Content-Disposition', `attachment; filename="card-sync-details-${todayISO(cfg.tz)}.json"`);
+    return reply.type('application/json').send(JSON.stringify(r.last_feed, null, 2));
   });
 
   // Owner only: forget the access URL (also revoke it in the SimpleFIN Bridge dashboard).
