@@ -186,7 +186,7 @@ Settings → Card sync → "Bring in earlier charges" backfills from a chosen da
 from before the first planner month (by backfill or CSV import) go into card-only months: the Card budget and
 nothing else, no accounts, bills or loans; New month never copies from them.
 
-It syncs every 2 hours from 6 AM to 10 PM (`SYNC_TIMES=06:00,08:00,…,22:00`, household time zone) and on Sync now, asking for the last 10
+It syncs at 6 AM and 6 PM (`SYNC_TIMES=06:00,18:00`, household time zone) and on Sync now, asking for the last 10
 days so late-posting charges are caught. Charges are filed by transaction date like CSV import, with the category
 memory and keyword rules. A charge the bank still flags pending more than 3 days after its posting date is treated as posted, and a pending
 entry whose posted charge has already arrived (same card, amount and store within 7 days) is dropped; both happen
