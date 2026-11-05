@@ -37,7 +37,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     loginLimit: Number(env.LOGIN_LIMIT) || 10,
     trustProxy: env.TRUST_PROXY ? env.TRUST_PROXY.split(',').map(x => x.trim()).filter(Boolean) : false,
     syncKey: env.SYNC_KEY || '',
-    syncTimes: (env.SYNC_TIMES ?? '06:00,18:00').split(',').map(x => x.trim()).filter(x => /^\d{2}:\d{2}$/.test(x)),
+    // Every 2 hours from 6 AM to 10 PM: SimpleFIN refreshes from the banks on its own schedule, so frequent checks
+    // pick up new and pending charges soon after it does.
+    syncTimes: (env.SYNC_TIMES ?? '06:00,08:00,10:00,12:00,14:00,16:00,18:00,20:00,22:00').split(',').map(x => x.trim()).filter(x => /^\d{2}:\d{2}$/.test(x)),
     simplefinAllowHttp: env.SIMPLEFIN_ALLOW_HTTP === '1'
   };
 }

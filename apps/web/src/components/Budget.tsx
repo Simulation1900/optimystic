@@ -1,8 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { addMonths, cents, fmt, guessCat, rememberedCat, monthBounds, monthLabel, monthPace, r2, shortDate, uid, type CardExpense, type Month } from '@optimystic/core';
+import { addMonths, cents, fmt, guessCat, rememberedCat, monthBounds, monthLabel, monthPace, r2, shortDate, uid, type CardExpense, type Month, type PendingCharge } from '@optimystic/core';
 import { api } from '../api';
 import { dispatch, flush, getState, openMonth, toast, useDerived, useStore } from '../store';
-import { ask, Field, Modal, money2 } from '../ui';
+import { ask, Field, Modal, money2, usePhone } from '../ui';
 
 const run = (f: () => void) => { try { f(); } catch (e) { toast((e as Error).message, true); } };
 
@@ -232,10 +232,15 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
   const [fCat, setFCat] = useState(''), [fCard, setFCard] = useState('');
   const ex = b.expenses.filter(e => (!fCat || e.catId === fCat) && (!fCard || e.cardId === fCard))
     .slice().sort((x, y) => y.date.localeCompare(x.date) || y.id.localeCompare(x.id));
+  const phone = usePhone();
+  const [editing, setEditing] = useState<CardExpense | null>(null);
+  const [pickPending, setPickPending] = useState<PendingCharge | null>(null);
   const row = (e: CardExpense) => (
-    <tr key={e.id}>
+    <tr key={e.id} data-expense={e.desc}>
       <td className="num">{shortDate(e.date)}</td>
-      <td><Field aria-label="Description" value={e.desc} onCommit={v => run(() => dispatch({ type: 'expense.update', id: e.id, version: e.version, patch: { desc: v } }))} /></td>
+      <td>{phone
+        ? <button type="button" className="rowbtn" onClick={() => setEditing(e)} aria-label={`Edit ${e.desc}`}>{e.desc}<span className="rowcat">{b.cats.find(k => k.id === e.catId)?.name || 'No category'}</span></button>
+        : <Field aria-label="Description" value={e.desc} onCommit={v => run(() => dispatch({ type: 'expense.update', id: e.id, version: e.version, patch: { desc: v } }))} />}</td>
       <td className="hide-sm"><select aria-label={`${e.desc} category`} value={e.catId} onChange={x => run(() => dispatch({ type: 'expense.update', id: e.id, version: e.version, patch: { catId: x.target.value } }))}>
         {b.cats.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select></td>
       <td className="hide-sm"><select aria-label={`${e.desc} card`} value={e.cardId} onChange={x => run(() => dispatch({ type: 'expense.update', id: e.id, version: e.version, patch: { cardId: x.target.value } }))}>
@@ -251,8 +256,12 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
   const pendRows = fCat ? [] : pend.map(p => (
     <tr key={'p' + p.id} className="pendrow" data-testid="pending-row">
       <td className="num">{shortDate(p.date)}</td>
-      <td>{p.desc} <span className="tag">Pending</span></td>
-      <td className="hide-sm hnote">not counted yet</td>
+      <td>{phone
+        ? <button type="button" className="rowbtn" onClick={() => setPickPending(p)} aria-label={`Category for pending ${p.desc}`}>{p.desc} <span className="tag">Pending</span><span className="rowcat">{b.cats.find(k => k.id === p.catId)?.name || 'No category'}</span></button>
+        : <>{p.desc} <span className="tag">Pending</span></>}</td>
+      <td className="hide-sm"><select aria-label={`${p.desc} pending category`} value={p.catId || ''} onChange={x => setPendingCategory(p.id, x.target.value)}>
+        {!p.catId && <option value="">—</option>}
+        {b.cats.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select></td>
       <td className="hide-sm">{cardName(p.cardId)}</td>
       <td className="r num">{fmt(p.amount)}</td><td />
     </tr>
@@ -278,6 +287,8 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
           <select aria-label="Filter by category" value={fCat} onChange={e => setFCat(e.target.value)}><option value="">All categories</option>{b.cats.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
           <select aria-label="Filter by card" value={fCard} onChange={e => setFCard(e.target.value)}><option value="">All cards</option>{b.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
         </div></div>
+      {editing && <ExpenseSheet e={editing} month={month} mkey={mkey} onClose={() => setEditing(null)} />}
+      {pickPending && <PendingSheet p={pickPending} month={month} onClose={() => setPickPending(null)} />}
       <div className="bscroll"><table className="btable exptable"><thead><tr><th>Date</th><th>Description</th><th className="hide-sm">Category</th><th className="hide-sm">Card</th><th className="r">Amount</th><th /></tr></thead><tbody>{pendRows}{body}</tbody></table></div>
     </div>
   );
@@ -331,5 +342,66 @@ function SpendBar({ spent, pending, limit, cls = 'minibar', label, children }: {
       {pending > 0 && <i className="pendseg" data-testid="pending-seg" style={{ left: solid + '%', width: Math.max(0, both - solid) + '%' }} title={`${fmt(pending)} pending`} />}
       {children}
     </div>
+  );
+}
+
+async function setPendingCategory(id: string, catId: string) {
+  try {
+    await api('POST', `/api/sync/pending/${encodeURIComponent(id)}/category`, { catId });
+    await openMonth(getState().key);
+  } catch (e) { toast((e as Error).message, true); }
+}
+
+/** Edit one card expense (on a phone, where the table hides the category and card columns). */
+function ExpenseSheet({ e, month, mkey, onClose }: { e: CardExpense; month: Month; mkey: string; onClose: () => void }) {
+  const b = month.budget, { first, last } = monthBounds(mkey);
+  const [desc, setDesc] = useState(e.desc), [amt, setAmt] = useState(e.amount.toFixed(2)), [date, setDate] = useState(e.date);
+  const [cat, setCat] = useState(e.catId), [card, setCard] = useState(e.cardId);
+  function save(ev: FormEvent) {
+    ev.preventDefault();
+    const patch: Record<string, unknown> = {};
+    if (desc.trim() && desc.trim() !== e.desc) patch.desc = desc;
+    if (cents(amt) && cents(amt) !== e.amount) patch.amount = amt;
+    if (date !== e.date) patch.date = date;
+    if (cat !== e.catId) patch.catId = cat;
+    if (card !== e.cardId) patch.cardId = card;
+    if (Object.keys(patch).length) run(() => dispatch({ type: 'expense.update', id: e.id, version: e.version, patch }));
+    onClose();
+  }
+  return (
+    <Modal sheet onClose={onClose} label={`Edit ${e.desc}`}>
+      <h3>Edit expense</h3>
+      <form className="addexp" onSubmit={save}>
+        <div className="full"><label htmlFor="eCat">Category</label><select id="eCat" value={cat} onChange={x => setCat(x.target.value)} autoFocus>{b.cats.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select></div>
+        <div className="full"><label htmlFor="eDesc">Description</label><input id="eDesc" value={desc} onChange={x => setDesc(x.target.value)} /></div>
+        <div><label htmlFor="eAmt">Amount</label><input id="eAmt" inputMode="decimal" value={amt} onChange={x => setAmt(x.target.value)} /></div>
+        <div><label htmlFor="eDate">Date</label><input id="eDate" type="date" min={first} max={last} value={date} onChange={x => setDate(x.target.value)} /></div>
+        <div className="full"><label htmlFor="eCard">Card</label><select id="eCard" value={card} onChange={x => setCard(x.target.value)}>{b.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div className="full dlgbtns" style={{ marginTop: 8 }}>
+          <button type="button" className="del" onClick={async () => { if (await ask(`Delete “${e.desc}”?`, 'Delete')) { run(() => dispatch({ type: 'expense.remove', id: e.id, version: e.version })); onClose(); } }}>Delete</button>
+          <span className="spacer" />
+          <button type="button" className="ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="pbtn">Save</button>
+        </div>
+      </form>
+      {e.source === 'sync' && <p className="hnote" style={{ marginTop: 8 }}>Brought in by card sync. A new category is remembered for this store.</p>}
+    </Modal>
+  );
+}
+
+/** Pick the category of a pending charge (remembered for the store, so it posts there too). */
+function PendingSheet({ p, month, onClose }: { p: PendingCharge; month: Month; onClose: () => void }) {
+  return (
+    <Modal sheet onClose={onClose} label={`Category for ${p.desc}`}>
+      <h3>{p.desc}</h3>
+      <p className="lede">{fmt(p.amount)} · pending. Pick its category; it keeps it when it posts.</p>
+      <div className="sheetlist">
+        {month.budget.cats.map(k => (
+          <button key={k.id} type="button" className={p.catId === k.id ? 'on' : ''} onClick={() => { setPendingCategory(p.id, k.id); onClose(); }}>
+            <span className="sn">{k.name}</span>{p.catId === k.id && <span className="after">✓</span>}
+          </button>
+        ))}
+      </div>
+    </Modal>
   );
 }

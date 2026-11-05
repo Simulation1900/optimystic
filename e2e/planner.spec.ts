@@ -252,3 +252,27 @@ test('older card charges get card-only months', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Add bill' })).toHaveCount(0);
   await expect(page.getByLabel('Switch month').locator('option', { hasText: 'October 2026 (card spending)' })).toHaveCount(1);
 });
+
+test('change the category of a card expense (phones too)', async ({ page }) => {
+  await seeded(page);
+  await tab(page, 'Card');
+  if (isPhone(page)) await page.getByRole('button', { name: 'Add an expense' }).click();
+  const form = isPhone(page) ? page.getByRole('dialog') : page.locator('.addcard');
+  await form.getByLabel('Description').fill('KROGER #12');
+  await form.getByLabel('Amount').fill('20');
+  await form.getByRole('button', { name: 'Add expense' }).click();
+  await expect(page.locator('.syncpill')).toHaveText('Saved');
+  if (isPhone(page)) {
+    await page.getByRole('button', { name: 'Edit KROGER #12' }).click();
+    const sheet = page.getByRole('dialog');
+    await sheet.getByLabel('Category').selectOption('cat-other');
+    await sheet.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Edit KROGER #12' })).toContainText('Other');
+  } else {
+    await page.getByLabel('KROGER #12 category').selectOption('cat-other');
+  }
+  await expect(page.locator('.syncpill')).toHaveText('Saved');
+  const m = await (await page.request.get('/api/months/2026-11')).json();
+  expect(m.month.budget.expenses.find((e: { desc: string }) => e.desc === 'KROGER #12').catId).toBe('cat-other');
+  expect(m.catMemory['KROGER']).toEqual({ catId: 'cat-other', catName: 'Other' });
+});

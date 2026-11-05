@@ -101,12 +101,22 @@ describe('card sync (SimpleFIN)', () => {
     expect(nov.month.budget.expenses.some((e: any) => /SHOULD NOT APPEAR|PENDING|Payment/.test(e.desc))).toBe(false);
     expect(nov.sync).toMatchObject({ connected: true, lastError: null });
     // the pending charge is shown with the month, but isn't in any total
-    expect(nov.pending).toEqual([{ id: 'c3', cardId: 'card-chase', date: '2026-11-06', desc: 'PENDING CAFE', amount: 7, catId: 'cat-dining-out' }]);
+    expect(nov.pending).toEqual([{ id: 'c3', cardId: 'card-chase', date: '2026-11-06', desc: 'PENDING CAFE', amount: 7, catId: 'cat-dining-out', catChosen: false }]);
     expect(nov.month.budget.expenses.some((e: any) => e.desc === 'PENDING CAFE')).toBe(false);
+    // pick a category for the pending charge: kept across syncs, and remembered for when it posts
+    const picked = (await c.post('/api/sync/pending/c3/category', { catId: 'cat-other' })).json();
+    expect(picked.pending.find((p: any) => p.id === 'c3')).toMatchObject({ catId: 'cat-other', catChosen: true });
+    expect(picked.catMemory['PENDING CAFE']).toEqual({ catId: 'cat-other', catName: 'Other' });
+    expect((await c.post('/api/sync/run')).statusCode).toBe(200);
+    expect((await c.get('/api/months/2026-11')).json().pending.find((p: any) => p.id === 'c3').catId).toBe('cat-other');
+    expect((await c.post('/api/sync/pending/c3/category', { catId: 'cat-nope' })).statusCode).toBe(400);
+    expect((await c.post('/api/sync/pending/zzz/category', { catId: 'cat-other' })).statusCode).toBe(404);
     // the pending charge posts: it comes in once, and nothing else doubles
     (txns['ACT-chase'] as any[])[2] = { id: 'c3', posted: day('2026-11-07'), transacted_at: day('2026-11-06'), amount: '-7.00', description: 'PENDING CAFE' };
     s = (await c.post('/api/sync/run')).json();
     expect(s.lastResult).toMatchObject({ added: 1, already: 3, matched: 0 });
+    // the posted charge took the category picked while it was pending
+    expect((await c.get('/api/months/2026-11')).json().month.budget.expenses.find((e: any) => e.desc === 'PENDING CAFE').catId).toBe('cat-other');
     expect((await c.get('/api/months/2026-11')).json().pending).toEqual([]);
     // and the CSV can be imported again without doubling the synced charge
     expect((await c.post('/api/budget/import', { card: 'card-chase', csv: fixture('sample-card-activity.csv'), month: '2026-11' })).json().added).toBe(0);

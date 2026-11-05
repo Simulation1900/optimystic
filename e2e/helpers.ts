@@ -10,7 +10,7 @@ export const OWNER = { name: 'Nate', email: 'owner@example.com', password: 'a lo
 export async function resetDb() {
   const c = new pg.Client({ connectionString: DB });
   await c.connect();
-  await c.query('TRUNCATE users, months, audit_log RESTART IDENTITY CASCADE');
+  await c.query('TRUNCATE users, months, audit_log, category_choices, app_settings RESTART IDENTITY CASCADE');
   await c.end();
 }
 

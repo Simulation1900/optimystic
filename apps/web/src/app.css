@@ -150,3 +150,6 @@ dialog.sheet h3{font-size:20px}
 .pace i.pendseg{background:var(--c,var(--accent))}
 .minibar.over i.pendseg,.pace.over i.pendseg{background:var(--bad)}
 .pendnote{font-size:11px;color:var(--muted);font-style:italic}
+.rowbtn{border:none;background:none;padding:2px 0;text-align:left;width:100%;cursor:pointer;color:inherit;font:inherit}
+.rowbtn .rowcat{display:block;font-size:11.5px;color:var(--muted)}
+.pendrow .rowbtn{font-style:italic}

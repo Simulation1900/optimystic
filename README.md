@@ -186,7 +186,7 @@ Settings → Card sync → "Bring in earlier charges" backfills from a chosen da
 from before the first planner month (by backfill or CSV import) go into card-only months: the Card budget and
 nothing else, no accounts, bills or loans; New month never copies from them.
 
-It syncs at 6 AM and 6 PM (`SYNC_TIMES=06:00,18:00`, household time zone) and on Sync now, asking for the last 10
+It syncs every 2 hours from 6 AM to 10 PM (`SYNC_TIMES=06:00,08:00,…,22:00`, household time zone) and on Sync now, asking for the last 10
 days so late-posting charges are caught. Charges are filed by transaction date like CSV import, with the category
 memory and keyword rules. A charge the bank still flags pending more than 3 days after its posting date is treated as posted, and a pending
 entry whose posted charge has already arrived (same card, amount and store within 7 days) is dropped; both happen
@@ -194,7 +194,9 @@ with BoA through SimpleFIN. Settings → Card sync → Download sync details sho
 when the bank's data was last updated; a card whose newest charge is 3+ days old is flagged there and on the Card
 budget tab, since its bank connection may be behind (BoA often is). BoA's padded descriptions ("KROGER #884
    NASHVILLE   TN") are trimmed to the store name, for sync and CSV alike.
-Pending charges are shown greyed at the top of the month's expenses and as a translucent segment
+A pending charge's category can be changed (tap it on a phone); the choice is kept across syncs and remembered for
+that store, so the posted charge lands in the same category. Any card expense can be edited by tapping it on a
+phone (category, card, description, amount, date). Pending charges are shown greyed at the top of the month's expenses and as a translucent segment
 in the category and card bars, with a guessed category; they count in Left to spend, in over-budget alerts and in
 projected card bills, but not in Spent (which is posted charges only) until they post, card payments are skipped, returns come in as
 credits. A charge already brought in by CSV (same card and amount, same store, within 5 days) is matched rather

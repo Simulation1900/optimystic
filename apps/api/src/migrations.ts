@@ -306,5 +306,22 @@ ALTER TABLE bank_connections ADD COLUMN last_feed jsonb;
 -- The newest charge SimpleFIN has sent for each account, to show when a bank's data is behind.
 ALTER TABLE bank_links ADD COLUMN newest_charge timestamptz;
 `
+  },
+  {
+    id: 11,
+    name: 'pending categories',
+    sql: `
+-- A category someone picked for a pending charge (kept across syncs until it posts).
+ALTER TABLE card_pending ADD COLUMN cat_key text;
+
+-- Category choices made without a filed expense (on pending charges), by store. They join the category memory,
+-- so the posted charge lands in the same category.
+CREATE TABLE category_choices (
+  merchant_key  text PRIMARY KEY,
+  cat_key       text NOT NULL,
+  cat_name      text NOT NULL,
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+`
   }
 ];

@@ -1,13 +1,13 @@
 // Card sync: pull the two credit cards' charges from SimpleFIN into the card budget.
 import type { FastifyInstance } from 'fastify';
-import { addMonths, cardItems, clone, fmt, monthLabel, unsettledPending, importSynced, newlyOverBudget, syncMessage, todayISO, withPending, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
+import { addMonths, cardItems, clone, fmt, merchantKey, monthLabel, unsettledPending, importSynced, newlyOverBudget, syncMessage, todayISO, withPending, type Month, type OverBudget, type SyncResult } from '@optimystic/core';
 import { tx, type Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
 import { categoryMemory, ensureCardOnlyMonths, listMonths, loadMonth, lockMonths, pendingCharges, saveMonth } from './repo.js';
 import { claim, decrypt, encrypt, fetchAccounts, SyncError } from './simplefin.js';
 import { sendPush } from './push.js';
-import { refreshStatementBills } from './planner.js';
+import { monthPayload, refreshStatementBills } from './planner.js';
 
 const LOOKBACK_DAYS = 10; // late-posting charges are caught on the next runs
 
@@ -99,10 +99,12 @@ async function doSync(db: Db, cfg: Config, userId: number | null, sinceOverride?
         }
         const pendingItems = unsettledPending(rawPending, nearby);
         total.pending += pendingItems.length;
+        // Replace this card's pending list, keeping any category someone picked for a charge still pending.
+        const picked = new Map((await c.query('SELECT id, cat_key FROM card_pending WHERE connection_id = $1 AND card_key = $2 AND cat_key IS NOT NULL', [conn.id, l.card_key])).rows.map(r => [r.id as string, r.cat_key as string]));
         await c.query('DELETE FROM card_pending WHERE connection_id = $1 AND card_key = $2', [conn.id, l.card_key]);
         for (const p of pendingItems) {
-          await c.query('INSERT INTO card_pending (connection_id, id, card_key, date, description, amount) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING',
-            [conn.id, p.id, l.card_key, p.date, p.desc.slice(0, 200), p.amount]);
+          await c.query('INSERT INTO card_pending (connection_id, id, card_key, date, description, amount, cat_key) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING',
+            [conn.id, p.id, l.card_key, p.date, p.desc.slice(0, 200), p.amount, picked.get(p.id) ?? null]);
         }
         if (!items.length) continue;
         // The months the charges fall in, plus their neighbours (a CSV line can sit a few days away).
@@ -217,6 +219,20 @@ export function registerSync(app: FastifyInstance, db: Db, cfg: Config) {
       if (since < floor) return reply.code(400).send({ error: `SimpleFIN only keeps about ${MAX_BACKFILL_DAYS} days. Use a CSV download for anything older.` });
     }
     try { return await runSync(db, cfg, user.id, since); } catch (e) { return fail(reply, e); }
+  });
+
+  // Pick the category of a pending charge. It's remembered for that store, so the posted charge lands there too.
+  app.post('/api/sync/pending/:id/category', async (req, reply) => {
+    const user = requireUser(req, reply); if (!user) return;
+    const id = (req.params as { id: string }).id, catId = String((req.body as { catId?: string })?.catId || '');
+    const row = (await db.query("SELECT p.description, to_char(p.date, 'YYYY-MM') AS month FROM card_pending p WHERE p.id = $1", [id])).rows[0];
+    if (!row) return reply.code(404).send({ error: 'That charge isn’t pending any more. It may have just posted.' });
+    const cat = (await db.query('SELECT name FROM budget_categories WHERE month_key = $1 AND cat_key = $2', [row.month, catId])).rows[0];
+    if (!cat) return reply.code(400).send({ error: 'That category isn’t in this month.' });
+    await db.query('UPDATE card_pending SET cat_key = $2 WHERE id = $1', [id, catId]);
+    await db.query(`INSERT INTO category_choices (merchant_key, cat_key, cat_name) VALUES ($1, $2, $3)
+      ON CONFLICT (merchant_key) DO UPDATE SET cat_key = EXCLUDED.cat_key, cat_name = EXCLUDED.cat_name, updated_at = now()`, [merchantKey(row.description), catId, cat.name]);
+    return monthPayload(db, row.month);
   });
 
   // Owner only: what SimpleFIN sent for the linked cards on the last sync (no credentials), to check bank quirks.

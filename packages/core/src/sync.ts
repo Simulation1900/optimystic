@@ -121,7 +121,7 @@ export const syncMessage = (r: SyncResult) =>
   + (r.older ? ` ${r.older} older charge${r.older === 1 ? '' : 's'} from before the planner’s first month left out.` : '');
 
 /** A pending card charge as the planner shows it: with a guessed category, not yet filed. */
-export interface PendingCharge { id: string; cardId: string; date: string; desc: string; amount: number; catId?: string }
+export interface PendingCharge { id: string; cardId: string; date: string; desc: string; amount: number; catId?: string; catChosen?: boolean }
 
 /**
  * A copy of a month with its pending charges added as if they'd posted. Used wherever pending charges should

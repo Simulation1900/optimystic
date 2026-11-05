@@ -224,21 +224,28 @@ export async function auditNote(c: Tx, userId: number | null, action: string, af
 
 /** The household's category memory: every expense a person filed, oldest first, across all months. */
 export async function categoryMemory(c: Tx | { query: Tx['query'] }): Promise<CategoryMemory> {
-  const r = await c.query(`SELECT e.description, e.cat_key, coalesce(k.name, '') AS cat_name
-    FROM card_expenses e LEFT JOIN budget_categories k ON k.month_key = e.month_key AND k.cat_key = e.cat_key
-    WHERE e.cat_chosen ORDER BY e.updated_at, e.date, e.sort`);
+  // Filed expenses someone categorised, and choices made on pending charges, oldest first (the latest wins).
+  const r = await c.query(`SELECT description, cat_key, cat_name FROM (
+      SELECT e.description, e.cat_key, coalesce(k.name, '') AS cat_name, e.updated_at AS at, e.sort AS ord
+      FROM card_expenses e LEFT JOIN budget_categories k ON k.month_key = e.month_key AND k.cat_key = e.cat_key
+      WHERE e.cat_chosen
+      UNION ALL
+      SELECT merchant_key, cat_key, cat_name, updated_at, 0 FROM category_choices
+    ) x ORDER BY at, ord`);
   return learnCategories(r.rows.map(x => ({ desc: x.description as string, catId: x.cat_key as string, catName: x.cat_name as string })));
 }
 
 /** Pending card charges from the latest sync dated in this month, each with a guessed category. */
 export async function pendingCharges(c: Tx | { query: Tx['query'] }, key: string, month?: Month): Promise<PendingCharge[]> {
-  const r = await c.query(`SELECT id, card_key, to_char(date, 'YYYY-MM-DD') AS date, description, amount FROM card_pending
+  const r = await c.query(`SELECT id, card_key, to_char(date, 'YYYY-MM-DD') AS date, description, amount, cat_key FROM card_pending
     WHERE to_char(date, 'YYYY-MM') = $1 ORDER BY date DESC, description`, [key]);
   if (!r.rowCount) return [];
   const m = month || await loadMonth(c, key);
   const memory = await categoryMemory(c);
   return r.rows.map(x => ({ id: x.id as string, cardId: x.card_key as string, date: x.date as string, desc: x.description as string, amount: Number(x.amount),
-    catId: m ? guessCat(x.description as string, m.budget, memory)?.id : undefined }));
+    // a category someone picked for this pending charge, else the memory and rules
+    catId: m ? (m.budget.cats.some(k => k.id === x.cat_key) ? x.cat_key as string : guessCat(x.description as string, m.budget, memory)?.id) : undefined,
+    catChosen: !!x.cat_key }));
 }
 
 export async function cardOnlyKeys(c: Tx | { query: Tx['query'] }): Promise<string[]> {
