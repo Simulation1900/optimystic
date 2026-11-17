@@ -111,12 +111,19 @@ dialog.sheet h3{font-size:20px}
   .ratebar input[type=range]{min-width:0;flex-basis:100%}
   .btable{table-layout:auto}
 }
+/* Amounts never break across lines (a browser may break "-$1,034.90" after the minus). */
+.btable td.num{white-space:nowrap}
 @media (max-width:700px){
   .cattable,.exptable{table-layout:fixed}
   .cattable th:nth-child(1){width:auto}
-  .cattable th:nth-child(3){width:23%}
-  .cattable th:nth-child(4),.cattable th:nth-child(5){width:21%}
-  .cattable th:nth-child(7),.exptable th:nth-child(6){width:30px}
+  /* Room for an overspend like "-$1,599.67" in Left on a 360px phone; the × column gives up some width. */
+  .cattable th:nth-child(3){width:21%}
+  .cattable th:nth-child(4){width:22%}
+  .cattable th:nth-child(5){width:24%}
+  .cattable th:nth-child(7){width:22px}
+  .exptable th:nth-child(6){width:30px}
+  .cattable td.num,.cattable .lim{font-size:12px;letter-spacing:-.01em}
+  .cattable td:last-child{padding-left:0;padding-right:0;text-align:center}
   .exptable th:nth-child(1){width:52px}
   .exptable th:nth-child(5){width:28%}
   .btable input,.btable select{min-width:0}
