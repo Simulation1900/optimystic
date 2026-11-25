@@ -128,7 +128,7 @@ dialog.sheet h3{font-size:20px}
   .exptable th:nth-child(5){width:28%}
   .btable input,.btable select{min-width:0}
   .btable td{padding:6px 3px}
-  .cattable .minibar.phone-only{display:block;margin:3px 5px 0}
+  .cattable .catbar.phone-only{padding:3px 5px 2px}
   .btable .lim{width:100%}
 }
 
@@ -160,3 +160,28 @@ dialog.sheet h3{font-size:20px}
 .rowbtn{border:none;background:none;padding:2px 0;text-align:left;width:100%;cursor:pointer;color:inherit;font:inherit}
 .rowbtn .rowcat{display:block;font-size:11.5px;color:var(--muted)}
 .pendrow .rowbtn{font-style:italic}
+
+/* ---------- category bars: hover for the charges, click to open them ---------- */
+.catbar{position:relative;display:block;width:100%;border:none;background:none;padding:6px 0;margin:0;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.catbar:hover .minibar{background:var(--line)}
+@media (min-width:701px){.catbar.phone-only{display:none}}
+.catpop{display:none;position:absolute;right:0;top:calc(100% + 2px);z-index:30;width:320px;max-height:280px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lift);padding:6px;font-size:12.5px}
+@media (hover:hover){.catbar:hover .catpop,.catbar:focus-visible .catpop{display:block}}
+.cpi,.citem{display:flex;align-items:baseline;gap:8px;padding:5px 6px}
+.cpi .cd,.citem .cd{flex:0 0 46px;color:var(--muted)}
+.cpi .cn,.citem .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpi .ca,.citem .ca{white-space:nowrap}
+.cpi.pend,.citems li.pend .citem{color:var(--muted);font-style:italic}
+.cpi .tag,.citem .tag{margin-left:6px;font-style:normal}
+.cpe{display:block;padding:6px;color:var(--muted)}
+.cph{display:block;padding:6px 6px 2px;border-top:1px solid var(--line2);margin-top:4px;font-size:11px;color:var(--faint)}
+.catopen td{border-bottom-color:transparent}
+.btable .catitems>td{padding:0 6px 12px}
+.citems{list-style:none;margin:0;padding:4px;background:var(--raised);border:1px solid var(--line2);border-radius:10px;max-height:360px;overflow:auto}
+.citems li+li{border-top:1px solid var(--line2)}
+.citem{width:100%;border:none;background:none;cursor:pointer;font:inherit;color:inherit;text-align:left;border-radius:8px}
+.citem:hover{background:var(--line2)}
+.citem .chev{flex:0 0 12px;color:var(--faint);font-size:11px}
+.cdetail{padding:2px 10px 10px 60px;font-size:12.5px}
+.cdetail .mini{margin-top:6px}
+@media (max-width:700px){.cdetail{padding-left:10px}}

@@ -47,6 +47,19 @@ test('connect card sync, link the cards, and see the charges in the card budget'
   await expect(page.getByTestId('card-pending-card-chase')).toHaveText('+$8.25 pending');
   await expect(page.locator('[data-testid="pending-seg"]').first()).toBeAttached();
   await expect(page.getByTestId('cat-pending-cat-coffee-snacks')).toHaveText('+$8.25 pending');
+  // filtering the expenses by category keeps that category's pending charges
+  await page.getByLabel('Filter by category').selectOption('cat-coffee-snacks');
+  await expect(page.getByTestId('pending-row')).toContainText('COFFEE SHOP');
+  await page.getByLabel('Filter by category').selectOption('');
+  // a category's bar opens its charges, and each one opens to its details
+  await page.getByRole('button', { name: /^Show the \d+ charges? in Coffee & snacks$/ }).click();
+  const items = page.getByTestId('cat-items');
+  await expect(items).toContainText('COFFEE SHOP');
+  await items.getByRole('button', { name: /COFFEE SHOP/ }).click();
+  await expect(page.getByTestId('cat-item-detail')).toContainText('Chase');
+  await expect(page.getByTestId('cat-item-detail')).toContainText('Pending');
+  await page.getByRole('button', { name: /^Hide the \d+ charges? in Coffee & snacks$/ }).click();
+  await expect(items).toHaveCount(0);
   // pick the pending charge's category
   if (page.viewportSize()!.width <= 700) {
     await page.getByRole('button', { name: 'Category for pending COFFEE SHOP' }).click();

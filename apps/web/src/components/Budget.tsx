@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { Fragment, useRef, useState, type FormEvent } from 'react';
 import { addMonths, cents, fmt, guessCat, rememberedCat, monthBounds, monthLabel, monthPace, r2, shortDate, uid, type CardExpense, type Month, type PendingCharge } from '@optimystic/core';
 import { api } from '../api';
 import { dispatch, flush, getState, openMonth, toast, useDerived, useStore } from '../store';
@@ -88,26 +88,52 @@ export function BudgetTab() {
   );
 }
 
+/** A charge in a category: a posted expense or a pending charge. */
+type CatItem = { id: string; date: string; desc: string; amount: number; cardId: string; exp?: CardExpense; pend?: PendingCharge };
+
 function Categories({ month }: { month: Month }) {
   const b = month.budget, st = useDerived()!.budget;
-  const pend = usePendingSums(useStore(s => s.key));
+  const mkey = useStore(s => s.key);
+  const pend = usePendingSums(mkey);
+  const pending = useStore(s => (s.server?.key === mkey ? s.server.pending : undefined)) || [];
+  const [open, setOpen] = useState<string | null>(null);
+  const [editing, setEditing] = useState<CardExpense | null>(null);
+  const [pickPending, setPickPending] = useState<PendingCharge | null>(null);
+  const phone = usePhone();
+  // Pending first (newest first), then posted (newest first): the same order as the Expenses list.
+  const itemsOf = (catId: string): CatItem[] => [
+    ...pending.filter(p => p.catId === catId).sort((x, y) => y.date.localeCompare(x.date)).map(p => ({ id: 'p' + p.id, date: p.date, desc: p.desc, amount: p.amount, cardId: p.cardId, pend: p })),
+    ...b.expenses.filter(e => e.catId === catId).sort((x, y) => y.date.localeCompare(x.date) || y.id.localeCompare(x.id))
+      .map(e => ({ id: e.id, date: e.date, desc: e.desc, amount: Number(e.amount) || 0, cardId: e.cardId, exp: e }))
+  ];
   return (
     <div className="hcard">
       <h3>Categories</h3>
+      {editing && <ExpenseSheet e={editing} month={month} mkey={mkey} onClose={() => setEditing(null)} />}
+      {pickPending && <PendingSheet p={pickPending} month={month} onClose={() => setPickPending(null)} />}
       <table className="btable cattable"><thead><tr><th>Category</th><th className="hide-sm">Card</th><th className="r">Limit</th><th className="r">Spent</th><th className="r">Left</th><th className="hide-sm" /><th /></tr></thead>
         <tbody>{b.cats.map(k => {
           const sp = r2(st.byCat[k.id] || 0), pp = pend.byCat[k.id] || 0, lim = Number(k.limit) || 0, left = r2(lim - sp - pp);
-          return (
-            <tr key={k.id} data-cat={k.name}>
+          const items = itemsOf(k.id), isOpen = open === k.id;
+          const bar = (cls: string, phoneBar: boolean) => (
+            <button type="button" className={`catbar ${phoneBar ? 'phone-only' : ''}`} aria-expanded={isOpen}
+              aria-label={`${isOpen ? 'Hide' : 'Show'} the ${items.length} charge${items.length === 1 ? '' : 's'} in ${k.name}`}
+              data-testid={phoneBar ? undefined : `catbar-${k.id}`} onClick={() => setOpen(isOpen ? null : k.id)}>
+              <SpendBar cls={cls} spent={sp} pending={pp} limit={lim} label={phoneBar ? undefined : `${k.name} spent`} />
+              {!phoneBar && !isOpen && <CatPop items={items} />}
+            </button>
+          );
+          return (<Fragment key={k.id}>
+            <tr data-cat={k.name} className={isOpen ? 'catopen' : ''}>
               <td><Field aria-label="Category name" value={k.name} onCommit={v => run(() => dispatch({ type: 'cat.update', id: k.id, version: k.version, patch: { name: v } }))} />
-                <SpendBar cls="minibar phone-only" spent={sp} pending={pp} limit={lim} /></td>
+                {bar('minibar', true)}</td>
               <td className="hide-sm"><select aria-label={`${k.name} card`} value={k.cardId} onChange={e => run(() => dispatch({ type: 'cat.update', id: k.id, version: k.version, patch: { cardId: e.target.value } }))}>
                 {b.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></td>
               <td className="r"><Field className="r lim" inputMode="decimal" aria-label={`${k.name} monthly limit`} value={lim} format={money2}
                 onCommit={v => run(() => dispatch({ type: 'cat.update', id: k.id, version: k.version, patch: { limit: v } }))} /></td>
               <td className="r num">{fmt(sp)}{pp > 0 && <div className="pendnote" data-testid={`cat-pending-${k.id}`}>+{fmt(pp)} pending</div>}</td>
               <td className={`r num ${left < 0 ? 'neg' : ''}`}>{fmt(left)}</td>
-              <td className="hide-sm" style={{ width: '18%' }}><SpendBar spent={sp} pending={pp} limit={lim} label={`${k.name} spent`} /></td>
+              <td className="hide-sm" style={{ width: '18%' }}>{bar('minibar', false)}</td>
               <td><button className="x" title="Remove category" aria-label={`Remove ${k.name}`} onClick={async () => {
                 const n = b.expenses.filter(x => x.catId === k.id).length;
                 const other = b.cats.find(x => x.name.toLowerCase() === 'other' && x.id !== k.id);
@@ -115,7 +141,12 @@ function Categories({ month }: { month: Month }) {
                   run(() => dispatch({ type: 'cat.remove', id: k.id, version: k.version }));
               }}>×</button></td>
             </tr>
-          );
+            {/* Span only the visible columns: hidden ones counted in a span would add empty columns on a phone. */}
+            {isOpen && <tr className="catitems"><td colSpan={phone ? 5 : 7}>
+              <CatItems items={items} name={k.name} cardName={id => b.cards.find(c => c.id === id)?.name || ''}
+                onEdit={i => (i.exp ? setEditing(i.exp) : i.pend && setPickPending(i.pend))} />
+            </td></tr>}
+          </Fragment>);
         })}</tbody>
         <tfoot><tr><td><b>Total</b></td><td className="hide-sm" /><td className="r num"><b>{fmt(st.limit)}</b></td><td className="r num"><b>{fmt(st.spent)}</b>{pend.total > 0 && <div className="pendnote">+{fmt(pend.total)} pending</div>}</td><td className={`r num ${st.left - pend.total < 0 ? 'neg' : ''}`} data-testid="cats-left-total"><b>{fmt(r2(st.left - pend.total))}</b></td><td className="hide-sm" /><td /></tr></tfoot>
       </table>
@@ -250,10 +281,11 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
       <td><button className="x" title="Delete expense" aria-label={`Delete ${e.desc}`} onClick={() => run(() => dispatch({ type: 'expense.remove', id: e.id, version: e.version }))}>×</button></td>
     </tr>
   );
-  const pend = (useStore(s => (s.server?.key === mkey ? s.server.pending : undefined)) || []).filter(p => !fCard || p.cardId === fCard);
+  const pend = (useStore(s => (s.server?.key === mkey ? s.server.pending : undefined)) || [])
+    .filter(p => (!fCat || p.catId === fCat) && (!fCard || p.cardId === fCard));
   const cardName = (id: string) => b.cards.find(c => c.id === id)?.name || '';
   // Pending charges sit on top, greyed: not in any total until they post (their id and amount can change).
-  const pendRows = fCat ? [] : pend.map(p => (
+  const pendRows = pend.map(p => (
     <tr key={'p' + p.id} className="pendrow" data-testid="pending-row">
       <td className="num">{shortDate(p.date)}</td>
       <td>{phone
@@ -267,7 +299,8 @@ function Expenses({ month, mkey }: { month: Month; mkey: string }) {
     </tr>
   ));
   let body;
-  if (!ex.length) body = <tr><td colSpan={6} className="hnote" style={{ padding: '18px 6px' }}>No expenses {b.expenses.length ? 'match the filter' : `logged for ${monthLabel(mkey)} yet`}.</td></tr>;
+  if (!ex.length && pendRows.length) body = null;
+  else if (!ex.length) body = <tr><td colSpan={6} className="hnote" style={{ padding: '18px 6px' }}>No expenses {b.expenses.length ? 'match the filter' : `logged for ${monthLabel(mkey)} yet`}.</td></tr>;
   else if (group === 'date') body = ex.map(row);
   else {
     const groups = group === 'cat' ? b.cats.map(k => [k.id, k.name]) : b.cards.map(c => [c.id, c.name]);
@@ -342,6 +375,55 @@ function SpendBar({ spent, pending, limit, cls = 'minibar', label, children }: {
       {pending > 0 && <i className="pendseg" data-testid="pending-seg" style={{ left: solid + '%', width: Math.max(0, both - solid) + '%' }} title={`${fmt(pending)} pending`} />}
       {children}
     </div>
+  );
+}
+
+/** The hover list on a category's bar (pointer devices only; CSS hides it elsewhere). Spans, since it sits in a button. */
+function CatPop({ items }: { items: CatItem[] }) {
+  return (
+    <span className="catpop" role="tooltip">
+      {items.length ? items.map(i => (
+        <span key={i.id} className={`cpi ${i.pend ? 'pend' : ''}`}>
+          <span className="cd num">{shortDate(i.date)}</span>
+          <span className="cn">{i.desc}{i.pend && <span className="tag">Pending</span>}</span>
+          <span className="ca num">{fmt(i.amount)}</span>
+        </span>
+      )) : <span className="cpe">No charges yet.</span>}
+      {items.length > 0 && <span className="cph">Click the bar for details</span>}
+    </span>
+  );
+}
+
+const SOURCE: Record<string, string> = { manual: 'Added by hand', csv: 'CSV import', sync: 'Card sync' };
+
+/** A category's charges, opened from its bar. Each one expands to its details. */
+function CatItems({ items, name, cardName, onEdit }: { items: CatItem[]; name: string; cardName: (id: string) => string; onEdit: (i: CatItem) => void }) {
+  const [shown, setShown] = useState<string | null>(null);
+  if (!items.length) return <div className="hnote" data-testid="cat-items">Nothing in {name} yet this month.</div>;
+  return (
+    <ul className="citems" data-testid="cat-items" aria-label={`Charges in ${name}`}>
+      {items.map(i => {
+        const on = shown === i.id;
+        return (
+          <li key={i.id} className={`${i.pend ? 'pend' : ''} ${on ? 'on' : ''}`}>
+            <button type="button" className="citem" aria-expanded={on} onClick={() => setShown(on ? null : i.id)}>
+              <span className="cd num">{shortDate(i.date)}</span>
+              <span className="cn">{i.desc}{i.pend && <span className="tag">Pending</span>}</span>
+              <span className="ca num">{fmt(i.amount)}</span>
+              <span className="chev" aria-hidden="true">{on ? '▾' : '▸'}</span>
+            </button>
+            {on && <div className="cdetail" data-testid="cat-item-detail">
+              <div className="kv"><span>Date</span><b>{new Date(i.date + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</b></div>
+              <div className="kv"><span>Card</span><b>{cardName(i.cardId) || '—'}</b></div>
+              <div className="kv"><span>Amount</span><b className="num">{fmt(i.amount)}</b></div>
+              <div className="kv"><span>Status</span><b>{i.pend ? 'Pending · not in Spent until it posts' : 'Posted'}</b></div>
+              {i.exp && <div className="kv"><span>From</span><b>{SOURCE[i.exp.source || 'manual'] || 'Added by hand'}</b></div>}
+              <button type="button" className="mini" onClick={() => onEdit(i)}>{i.pend ? 'Change category' : 'Edit'}</button>
+            </div>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
