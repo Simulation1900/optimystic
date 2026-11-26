@@ -86,6 +86,25 @@ describe('budget advice through files', () => {
     expect(done).toMatchObject({ status: 'done', endMonth: latest });
   });
 
+  it('treats shortfalls as HELOC draws, serves trends, and keeps valid charts from the advice', async () => {
+    const brief = (await c.get('/api/advice/brief')).json();
+    expect(brief.instructions).toContain('covered by drawing on the');
+    expect(brief.month_over_month[0]).toHaveProperty('shortfall_to_heloc');
+    expect(brief.months[brief.months.length - 1]).toHaveProperty('projected_heloc_draw');
+    const trends = (await c.get('/api/advice/trends')).json();
+    expect(trends.months.length).toBe(brief.month_over_month.length);
+    const r = (await c.post('/api/advice/import', { format: 'billplanner-advice/1', summary: ['With charts.'], charts: [
+      { title: 'Spending', kind: 'bar', unit: '$', labels: ['Oct', 'Nov'], series: [{ name: 'Spent', values: [5055.211, 3138.44] }], caption: 'Down.' },
+      { title: 'Broken', kind: 'line', labels: ['Oct', 'Nov'], series: [{ name: 'x', values: [1] }] },
+      { kind: 'bar', labels: ['a'], series: [{ name: 'x', values: [1] }] }
+    ] })).json();
+    expect(r.charts).toBe(1);
+    expect(r.errors.length).toBe(2);
+    const adv = (await c.get('/api/advice')).json().advice;
+    expect(adv.charts[0]).toMatchObject({ title: 'Spending', kind: 'bar', unit: '$', labels: ['Oct', 'Nov'] });
+    expect(adv.charts[0].series[0].values).toEqual([5055.21, 3138.44]);
+  });
+
   it('agent keys reach only the advice routes, skip the browser origin check, and stop when revoked', async () => {
     const made = (await c.post('/api/agent-keys', { name: 'Claude Code' })).json();
     expect(made.key).toMatch(/^bp_agent_/);

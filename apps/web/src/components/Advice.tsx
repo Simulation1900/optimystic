@@ -3,13 +3,14 @@ import { fmt, monthLabel } from '@optimystic/core';
 import { api, ApiError } from '../api';
 import { dispatch, toast, useStore } from '../store';
 import { Goals, type GoalRow, type Review, type Suggested } from './Goals';
+import { Chart, type ChartSpec } from './Chart';
 
 type Rec = { title: string; detail: string; area: string; priority: 'high' | 'medium' | 'low'; monthly_impact: number | null };
 type Limit = { category_id: string; name: string; current_limit: number; suggested_limit: number; reason: string };
 type Advice = {
   id: number; createdAt: string; briefAt: string | null; question: string | null; by: string | null; summary: string[]; recommendations: Rec[];
   category_limits: Limit[]; watch: string[]; answer: string | null;
-  month_over_month?: string[]; overall_progress?: string[]; goal_reviews?: Review[]; suggested_goals?: Suggested[];
+  month_over_month?: string[]; overall_progress?: string[]; goal_reviews?: Review[]; suggested_goals?: Suggested[]; charts?: ChartSpec[];
 };
 type Reply = { advice: Advice | null; history: Array<{ id: number; createdAt: string }> };
 type ImportReply = { id: number; recommendations: number; categoryLimits: number; summary: number; answered: boolean; errors: string[] };
@@ -50,6 +51,7 @@ export function AdviceTab() {
   return (
     <>
       <Goals goals={goals} setGoals={setGoals} reviews={a?.goal_reviews ?? []} suggested={a?.suggested_goals ?? []} />
+      <Trends />
       <div className="hhead" style={{ marginBottom: 18 }}><div><div className="eyebrow">Budget advice</div><h2>{a ? `Advice from ${day(a.createdAt)}` : 'Get budgeting advice'}</h2></div>
         {data && data.history.length > 1 && (
           <select className="mini" aria-label="Earlier advice" value={a?.id ?? ''} onChange={e => load(Number(e.target.value))}>
@@ -106,6 +108,7 @@ function AdviceView({ a }: { a: Advice }) {
         <div className="hcard"><h3>Your question</h3><p className="hnote"><i>{a.question}</i></p>{a.answer.split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}</div>
       )}
       {a.summary.length > 0 && <div className="hcard"><h3>Where you stand</h3>{a.summary.map((p, i) => <p key={i}>{p}</p>)}</div>}
+      {!!a.charts?.length && <div className="charts">{a.charts.map((c, i) => <Chart key={`${a.id}-${i}`} spec={c} />)}</div>}
       {!!a.month_over_month?.length && <div className="hcard"><h3>Compared with last month</h3>{a.month_over_month.map((p, i) => <p key={i}>{p}</p>)}</div>}
       {!!a.overall_progress?.length && <div className="hcard"><h3>Overall progress</h3>{a.overall_progress.map((p, i) => <p key={i}>{p}</p>)}</div>}
       {recs.length > 0 && (
@@ -140,6 +143,35 @@ function AdviceView({ a }: { a: Advice }) {
         </div>
       )}
       {a.watch.length > 0 && <div className="hcard"><h3>Keep an eye on</h3><ul>{a.watch.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
+    </div>
+  );
+}
+
+type Metrics = { month: string; card_only: boolean; cash_on_hand: number; left_over_after_bills: number; card_spent: number; card_limits: number;
+  card_overage: number; shortfall_to_heloc: number | null; heloc_balance: number | null; heloc_drawn: number | null };
+
+/** The app's own month-by-month charts, straight from the months (no agent needed). */
+function Trends() {
+  const [rows, setRows] = useState<Metrics[] | null>(null);
+  useEffect(() => { api<{ months: Metrics[] }>('GET', '/api/advice/trends').then(r => setRows(r.months)).catch(() => setRows([])); }, []);
+  if (!rows || rows.length < 2) return null;
+  const full = rows.filter(r => !r.card_only);
+  const lab = (rs: Metrics[]) => rs.map(r => monthLabel(r.month).replace(/ \d{4}$/, '').slice(0, 3) + ' ' + r.month.slice(2, 4));
+  const charts: ChartSpec[] = [
+    { title: 'Card spending against limits', kind: 'bar', unit: '$', labels: lab(rows), series: [
+      { name: 'Spent', values: rows.map(r => r.card_spent) }, { name: 'Limits', values: rows.map(r => r.card_limits) }] },
+  ];
+  if (full.length >= 1) charts.push(
+    { title: 'Left over after bills', kind: 'bar', unit: '$', signed: true, labels: lab(full), series: [{ name: 'Left over', values: full.map(r => r.left_over_after_bills) }],
+      caption: 'Below zero is a shortfall, which comes out of the HELOC.' },
+    { title: 'HELOC balance', kind: 'line', unit: '$', labels: lab(full), series: [{ name: 'Balance', values: full.map(r => r.heloc_balance) }] },
+    { title: 'HELOC draws and shortfalls', kind: 'bar', unit: '$', labels: lab(full), series: [
+      { name: 'Drawn', values: full.map(r => r.heloc_drawn) }, { name: 'Shortfall to cover', values: full.map(r => r.shortfall_to_heloc) }] },
+  );
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div className="hhead" style={{ marginBottom: 10 }}><div><div className="eyebrow">Month by month</div><h2>Trends</h2></div></div>
+      <div className="charts">{charts.map(c => <Chart key={c.title} spec={c} />)}</div>
     </div>
   );
 }

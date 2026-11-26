@@ -1,7 +1,7 @@
 // Household money goals. A goal starts in the month it's set and carries over to every later month until it's
 // marked done or dropped. Each kind is measured from the months themselves, so progress needs no typing.
 import type { Month } from './types.js';
-import { monthTotals } from './accounts.js';
+import { monthTotals, shortfalls } from './accounts.js';
 import { budgetStats } from './budget.js';
 import { r2, sumOf } from './money.js';
 
@@ -95,6 +95,8 @@ export function monthMetrics(key: string, m: Month) {
     card_only: !!m.cardOnly,
     starting_balances: t.cash, cash_on_hand: t.onHand, deposits_expected: t.deposits, bills: t.bills, left_over_after_bills: t.left,
     card_spent: b.spent, card_limits: b.limit, card_overage: overage,
+    // Accounts that end short get covered by a HELOC draw, so the shortfall is the draw this month will need.
+    shortfall_to_heloc: m.cardOnly ? null : sumOf(shortfalls(m).map(s => s.need)),
     heloc_balance: m.cardOnly ? null : r2(Number(m.heloc.balance) || 0),
     heloc_drawn: m.cardOnly ? null : sumOf(m.heloc.draws.map(d => Number(d.amount) || 0)),
     loan_balances: m.cardOnly ? [] : m.loans.map(l => ({ name: l.name, balance: r2(Number(l.balance) || 0) })),

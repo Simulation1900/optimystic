@@ -48,6 +48,19 @@ What to write:
 4. watch: up to 6 short things to keep an eye on next month (a bill that's going up, a promo rate ending, a category
    already at 80%).
 5. answer: if the brief has a question, answer it directly in 1-3 paragraphs; otherwise null.
+6. charts: 2-6 charts wherever a picture says it faster than words: the month-to-month trend you describe (left over,
+   card spending against limits, HELOC balance and draws), the categories over their limits, a debt payoff or HELOC
+   projection, the effect of a recommendation. Each chart: title, kind ("bar" or "line"), unit ("$" or "%"), labels
+   (the x-axis, e.g. months or category names, up to 24), series (1-4, each with a name and one number per label) and a
+   one-sentence caption saying what to notice. Only numbers from this file or arithmetic on them. The app already shows
+   its own month-by-month charts of left over, card spending, HELOC balance and draws, and cash on hand, so make yours
+   add something (a breakdown, a comparison, a projection).
+
+How this household uses the HELOC: when an account ends the month short, the shortfall is covered by drawing on the
+HELOC. So treat every shortfall (months[].shortfalls, month_over_month[].shortfall_to_heloc) as a HELOC draw: it adds
+to heloc.balance at heloc.rate_percent, raises the monthly payment, and uses up heloc.available. Say what this month's
+shortfall will add to the HELOC balance and to its monthly interest (amount x rate / 12), and treat closing shortfalls as
+the way to stop the HELOC growing.
 
 Rules: use only the numbers in this file and arithmetic on them; never invent balances, rates or income. "Pending" charges
 haven't posted yet. A bill marked paid has already left its account. The brief holds private financial data: don't send it
@@ -79,6 +92,7 @@ function monthSummary(key: string, m: Month) {
       deposits_expected: Number(a.deposit) || 0,
       ending_balance: t.accounts[a.id]?.left ?? null })),
     shortfalls: short.map(s => ({ account: s.account.name, need: s.need })),
+    projected_heloc_draw: r2(short.reduce((t, s) => t + s.need, 0)),
     bills: m.bills.map(x => ({ name: x.name, amount: Number(x.amount) || 0, due_day: x.dueDay, recurring: x.recurring, paid: x.paid, account: acct(x.accountId) })),
     transfers: (m.transfers || []).map(x => ({ from: acct(x.fromId), to: acct(x.toId), amount: Number(x.amount) || 0, note: x.note, recurring: x.recurring, done: x.done })),
     card_budget: {
@@ -121,6 +135,9 @@ export function buildBrief(months: Array<[string, Month]>, opts: { question: str
         area: 'cashflow', priority: 'high', monthly_impact: null }],
       category_limits: [{ category_id: 'cat-abc', suggested_limit: 450, reason: 'Averaged $446 over the last 4 months.' }],
       watch: ['Car insurance renews in March; last renewal went up 9%.'],
+      charts: [{ title: 'Card spending against limits', kind: 'bar', unit: '$', labels: ['Sep', 'Oct', 'Nov'],
+        series: [{ name: 'Spent', values: [3386.58, 5055.21, 3138.44] }, { name: 'Limits', values: [2741, 2741, 2716] }],
+        caption: 'October was the outlier; November is back near September.' }],
       answer: null,
       allowed_values: { area: AREAS, priority: PRIORITIES, goal_status: GOAL_STATUSES, goal_kind: Object.keys(GOAL_KINDS) }
     },
@@ -155,7 +172,25 @@ type Advice = {
   category_limits: Array<{ category_id: string; name: string; current_limit: number; suggested_limit: number; reason: string }>;
   watch: string[];
   answer: string | null;
+  charts: Chart[];
 };
+
+export type Chart = { title: string; kind: 'bar' | 'line'; unit: '$' | '%' | ''; labels: string[]; series: Array<{ name: string; values: number[] }>; caption: string };
+
+function readChart(x: Record<string, unknown>, where: string): Chart {
+  const title = text(x.title, 120);
+  if (!title) throw new Error(`${where}: no title`);
+  const labels = Array.isArray(x.labels) ? x.labels.map(l => text(l, 40)) : [];
+  if (labels.length < 1 || labels.length > 24) throw new Error(`${where}: needs 1-24 labels`);
+  const series = (Array.isArray(x.series) ? x.series : []).slice(0, 4).map((s, i) => {
+    const y = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>;
+    const values = Array.isArray(y.values) ? y.values.map(Number) : [];
+    if (values.length !== labels.length || values.some(v => !Number.isFinite(v) || Math.abs(v) > 1e9)) throw new Error(`${where}: series ${i + 1} needs one number per label`);
+    return { name: text(y.name, 60) || `Series ${i + 1}`, values: values.map(r2) };
+  });
+  if (!series.length) throw new Error(`${where}: needs at least one series`);
+  return { title, kind: x.kind === 'line' ? 'line' : 'bar', unit: x.unit === '%' ? '%' : x.unit === '' ? '' : '$', labels, series, caption: text(x.caption, 300) };
+}
 
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
@@ -186,6 +221,11 @@ export function readAdvice(body: unknown, latest: Month, goals: Goal[] = []): { 
   });
   const watch = list('watch').map(w => text(w, 400)).filter(Boolean).slice(0, 8);
   const answer = text(b.answer, 6000) || null;
+  const charts: Chart[] = [];
+  list('charts').slice(0, 8).forEach((c, i) => {
+    try { charts.push(readChart((c && typeof c === 'object' ? c : {}) as Record<string, unknown>, `Chart ${i + 1}`)); }
+    catch (e) { errors.push((e as Error).message); }
+  });
   const month_over_month = list('month_over_month').map(p => text(p, 2000)).filter(Boolean).slice(0, 6);
   const overall_progress = list('overall_progress').map(p => text(p, 2000)).filter(Boolean).slice(0, 6);
   const goal_reviews: Advice['goal_reviews'] = [];
@@ -207,7 +247,7 @@ export function readAdvice(body: unknown, latest: Month, goals: Goal[] = []): { 
   if (!summary.length && !recommendations.length && !category_limits.length && !answer && !goal_reviews.length && !month_over_month.length)
     throw new Error('The file has no summary, recommendations, limits, goal reviews or answer.');
   const briefAt = typeof b.brief_generated_at === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(b.brief_generated_at) ? b.brief_generated_at : null;
-  return { advice: { summary, month_over_month, overall_progress, goal_reviews, suggested_goals, recommendations, category_limits, watch, answer }, errors, briefAt };
+  return { advice: { summary, month_over_month, overall_progress, goal_reviews, suggested_goals, recommendations, category_limits, watch, answer, charts }, errors, briefAt };
 }
 
 export function registerAdvice(app: FastifyInstance, db: Db, cfg: Config) {
@@ -222,6 +262,12 @@ export function registerAdvice(app: FastifyInstance, db: Db, cfg: Config) {
     const history = (await db.query('SELECT id, created_at FROM advice ORDER BY id DESC LIMIT 24')).rows;
     return { advice: row ? { id: row.id, createdAt: new Date(row.created_at).toISOString(), briefAt: row.brief_at ? new Date(row.brief_at).toISOString() : null,
       question: row.question, by: row.by, ...row.body } : null, history: history.map(h => ({ id: h.id, createdAt: new Date(h.created_at).toISOString() })) };
+  });
+
+  // Month-by-month figures for the Advice tab's own charts (every month, oldest first).
+  app.get('/api/advice/trends', async (req, reply) => {
+    if (!requireUser(req, reply)) return;
+    return { months: (await allMonths(db)).map(([k, m]) => monthMetrics(k, m)) };
   });
 
   app.get('/api/advice/brief', async (req, reply) => {
@@ -254,6 +300,6 @@ export function registerAdvice(app: FastifyInstance, db: Db, cfg: Config) {
       [user.id, read.briefAt, question, JSON.stringify(read.advice)])).rows[0];
     return { id: row.id, recommendations: read.advice.recommendations.length, categoryLimits: read.advice.category_limits.length,
       goalReviews: read.advice.goal_reviews.length,
-      summary: read.advice.summary.length, answered: !!read.advice.answer, errors: read.errors };
+      summary: read.advice.summary.length, charts: read.advice.charts.length, answered: !!read.advice.answer, errors: read.errors };
   });
 }
