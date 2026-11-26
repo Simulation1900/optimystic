@@ -394,5 +394,20 @@ CREATE TABLE ai_usage (
   cost_usd       numeric(10,4) NOT NULL DEFAULT 0
 );
 `
+  },
+  {
+    id: 16,
+    name: 'chat',
+    sql: `
+-- Each person's "Ask" conversation (newest 20 messages are sent back to Claude as context).
+CREATE TABLE chat_messages (
+  id          serial PRIMARY KEY,
+  user_id     integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role        text NOT NULL CHECK (role IN ('user', 'assistant')),
+  content     text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX chat_messages_user ON chat_messages (user_id, id);
+`
   }
 ];

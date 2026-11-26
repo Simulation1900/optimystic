@@ -21,6 +21,8 @@ export interface Config {
   anthropicApiKey: string;
   /** Model that writes the advice. */
   adviceModel: string;
+  /** Model that answers in Ask (chat). */
+  chatModel: string;
   /** Monthly spending cap for Claude calls, in dollars. */
   aiMonthlyBudgetUsd: number;
 }
@@ -47,6 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     simplefinAllowHttp: env.SIMPLEFIN_ALLOW_HTTP === '1',
     anthropicApiKey: env.ANTHROPIC_API_KEY || '',
     adviceModel: env.ADVICE_MODEL || 'claude-opus-5-5',
+    chatModel: env.CHAT_MODEL || 'claude-sonnet-5-5',
     aiMonthlyBudgetUsd: Number(env.AI_MONTHLY_BUDGET_USD) > 0 ? Number(env.AI_MONTHLY_BUDGET_USD) : 25
   };
 }

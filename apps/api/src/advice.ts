@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { addMonths, budgetStats, GOAL_KINDS, withPending, helocCalc, isMonthKey, monthLabel, monthMetrics, monthTotals, shortfalls, todayISO, type Goal, type GoalKind, type GoalProgress, type Month } from '@optimystic/core';
 import { allMonths, goalsWithProgress, loadGoals } from './goals.js';
 import { registerAiAdvice } from './aiadvice.js';
+import { registerChat } from './chat.js';
 import type { Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
@@ -327,4 +328,5 @@ export function registerAdvice(app: FastifyInstance, db: Db, cfg: Config) {
   });
 
   registerAiAdvice(app, db, cfg, { makeBrief, saveAdvice });
+  registerChat(app, db, cfg, { makeBrief });
 }

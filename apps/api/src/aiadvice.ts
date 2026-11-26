@@ -31,18 +31,29 @@ type Client = Pick<Anthropic, 'messages'>;
 /** Tests swap in a fake Claude client here. */
 let makeClient: ((key: string) => Client) | null = null;
 export function setAiClientForTests(f: ((key: string) => Client) | null) { makeClient = f; }
+export const aiClient = (cfg: Config): Client => (makeClient ? makeClient(cfg.anthropicApiKey) : new Anthropic({ apiKey: cfg.anthropicApiKey }));
+
+/** Dollars spent on Claude this calendar month (household time zone). */
+export async function monthSpend(db: Db, cfg: Config): Promise<number> {
+  const r = await db.query(`SELECT coalesce(sum(cost_usd), 0) AS s FROM ai_usage WHERE at >= date_trunc('month', now() AT TIME ZONE $1) AT TIME ZONE $1`, [cfg.tz]);
+  return Number(r.rows[0].s) || 0;
+}
+
+type Usage = { input_tokens?: number | null; output_tokens?: number | null; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
+export async function recordUsage(db: Db, userId: number, feature: string, model: string, usage: Usage): Promise<number> {
+  const cost = costOf(model, usage);
+  await db.query('INSERT INTO ai_usage (user_id, feature, model, input_tokens, output_tokens, cost_usd) VALUES ($1, $2, $3, $4, $5, $6)',
+    [userId, feature, model, (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0), usage.output_tokens ?? 0, cost]);
+  return cost;
+}
 type Saved = { id: number } & Record<string, unknown>;
 
 export function registerAiAdvice(app: FastifyInstance, db: Db, cfg: Config,
   h: { makeBrief: (n: number, q: string) => Promise<Brief | null>; saveAdvice: (uid: number, body: unknown, q: string | null) => Promise<Saved> }) {
-  const clientFactory = (): Client => (makeClient ? makeClient(cfg.anthropicApiKey) : new Anthropic({ apiKey: cfg.anthropicApiKey }));
+  const clientFactory = () => aiClient(cfg);
   let running = false;
 
-  async function monthSpend(): Promise<number> {
-    const r = await db.query(`SELECT coalesce(sum(cost_usd), 0) AS s FROM ai_usage WHERE at >= date_trunc('month', now() AT TIME ZONE $1) AT TIME ZONE $1`, [cfg.tz]);
-    return Number(r.rows[0].s) || 0;
-  }
-  const state = async () => ({ available: !!cfg.anthropicApiKey, model: cfg.adviceModel, spentUsd: Math.round((await monthSpend()) * 100) / 100,
+  const state = async () => ({ available: !!cfg.anthropicApiKey, model: cfg.adviceModel, spentUsd: Math.round((await monthSpend(db, cfg)) * 100) / 100,
     capUsd: cfg.aiMonthlyBudgetUsd, running });
 
   app.get('/api/advice/ai', async (req, reply) => {
@@ -54,7 +65,7 @@ export function registerAiAdvice(app: FastifyInstance, db: Db, cfg: Config,
     const user = requireUser(req, reply); if (!user) return;
     if (!cfg.anthropicApiKey) return reply.code(400).send({ error: 'No Claude API key is set on the server, so refresh is off. Agent files still work.' });
     if (running) return reply.code(409).send({ error: 'Advice is already being written. Give it a minute.' });
-    const spent = await monthSpend();
+    const spent = await monthSpend(db, cfg);
     if (spent >= cfg.aiMonthlyBudgetUsd) return reply.code(429).send({ error: `This month’s AI budget of $${cfg.aiMonthlyBudgetUsd} is used up ($${spent.toFixed(2)} spent).` });
     const b = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
     const question = typeof b.question === 'string' ? b.question.trim().slice(0, 2000) : '';
@@ -70,9 +81,7 @@ export function registerAiAdvice(app: FastifyInstance, db: Db, cfg: Config,
         messages: [{ role: 'user', content: `Here is the household's brief (billplanner-brief/1):\n\n${JSON.stringify(data)}` }]
       });
       const msg = await stream.finalMessage();
-      const cost = costOf(msg.model || cfg.adviceModel, msg.usage);
-      await db.query('INSERT INTO ai_usage (user_id, feature, model, input_tokens, output_tokens, cost_usd) VALUES ($1, $2, $3, $4, $5, $6)',
-        [user.id, 'advice', msg.model || cfg.adviceModel, msg.usage.input_tokens ?? 0, msg.usage.output_tokens ?? 0, cost]);
+      const cost = await recordUsage(db, user.id, 'advice', msg.model || cfg.adviceModel, msg.usage);
       if (msg.stop_reason === 'refusal') return reply.code(502).send({ error: 'Claude declined to write this advice.' });
       if (msg.stop_reason === 'max_tokens') return reply.code(502).send({ error: 'Claude’s reply was cut off. Try fewer months.' });
       const text = msg.content.flatMap(c => (c.type === 'text' ? [c.text] : [])).join('');

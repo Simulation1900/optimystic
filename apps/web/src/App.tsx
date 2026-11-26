@@ -9,6 +9,7 @@ import { LoansTab } from './components/Loans';
 import { BudgetTab } from './components/Budget';
 import { SettingsTab } from './components/Settings';
 import { AdviceTab } from './components/Advice';
+import { ChatPanel } from './components/Chat';
 import { NewMonthDialog } from './components/NewMonth';
 import { openTransfer, TransferHost } from './components/Transfers';
 
@@ -74,11 +75,13 @@ const TABS: Array<[Tab, string, keyof typeof Icon]> = [['bills', 'Bills & spendi
 function Shell() {
   const tab = useStore(s => s.tab), month = useStore(s => s.month), months = useStore(s => s.months), key = useStore(s => s.key);
   const [dlg, setDlg] = useState<null | 'bill' | 'account' | 'newMonth'>(null);
+  const [chat, setChat] = useState(false);
   useEffect(() => { document.title = key ? `Bills – ${monthLabel(key)}` : 'Bill Planner'; }, [key]);
   const noMonths = !months.length;
   return (
     <div className="wrap">
-      <Header onAddBill={() => setDlg('bill')} onAddAccount={() => setDlg('account')} onNewMonth={() => setDlg('newMonth')} />
+      <Header onAddBill={() => setDlg('bill')} onAddAccount={() => setDlg('account')} onNewMonth={() => setDlg('newMonth')} onAsk={() => setChat(true)} />
+      {chat && <ChatPanel onClose={() => setChat(false)} />}
       <nav className="tabs top" role="tablist">
         {TABS.map(([t, label]) => <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{label}</button>)}
         <button role="tab" aria-selected={tab === 'settings'} className={`tab ${tab === 'settings' ? 'on' : ''}`} onClick={() => setTab('settings')}>Settings</button>
@@ -133,7 +136,7 @@ function FirstMonth({ onNew }: { onNew: () => void }) {
   );
 }
 
-function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void; onAddAccount: () => void; onNewMonth: () => void }) {
+function Header({ onAddBill, onAddAccount, onNewMonth, onAsk }: { onAddBill: () => void; onAddAccount: () => void; onNewMonth: () => void; onAsk: () => void }) {
   const cardOnly = useStore(s => s.server?.cardOnlyMonths) || [];
   const key = useStore(s => s.key), months = useStore(s => s.months), online = useStore(s => s.online), saving = useStore(s => s.saving);
   const pending = useStore(s => s.pending.length), user = useStore(s => s.user), tab = useStore(s => s.tab);
@@ -162,6 +165,7 @@ function Header({ onAddBill, onAddAccount, onNewMonth }: { onAddBill: () => void
         ) : <div className="monthnav"><h1>Bill Planner</h1></div>}
       </div>
       <div className="tools">
+        <button className="tbtn ask" onClick={onAsk} title="Ask about your money">Ask</button>
         <ThemeButton />
         <span className={`syncpill ${!online ? 'offline' : saving || pending ? 'saving' : ''}`} role="status"><i />{status}</span>
         {key && tab === 'bills' && !cardOnly.includes(key) && <>
