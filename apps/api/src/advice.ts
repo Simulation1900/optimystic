@@ -55,7 +55,7 @@ or any part of it anywhere else. Make sure the file is valid JSON with no commen
 
 /** A store name without the noise banks add (card numbers, city, store numbers), so repeat merchants group together. */
 export function merchantKey(desc: string): string {
-  return desc.toUpperCase().replace(/[#*]\S*/g, ' ').replace(/\d{3,}/g, ' ').replace(/\b(SQ|TST|SP|PAYPAL)\s*\*/g, '')
+  return desc.toUpperCase().replace(/^\s*(SQ|TST|SP|PAYPAL|PP)\s*\*\s*/, '').replace(/#\S*/g, ' ').replace(/\*/g, ' ').replace(/\d{3,}/g, ' ')
     .replace(/[^A-Z&' ]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ') || desc.trim();
 }
 
