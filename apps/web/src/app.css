@@ -78,7 +78,7 @@ dialog.sheet h3{font-size:20px}
   header{padding:18px 0 10px}
   .tools .tbtn.wide-only,.tools .sep{display:none}
   .tabs.top{display:none}
-  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:var(--safe-b);height:calc(var(--tabbar) + var(--safe-b))}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:var(--safe-b);height:calc(var(--tabbar) + var(--safe-b))}
   .tabbar button{border:none;background:none;color:var(--muted);font-size:11px;font-weight:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
   .tabbar button svg{width:22px;height:22px}
   .tabbar button.on{color:var(--accent)}
@@ -185,3 +185,29 @@ dialog.sheet h3{font-size:20px}
 .cdetail{padding:2px 10px 10px 60px;font-size:12.5px}
 .cdetail .mini{margin-top:6px}
 @media (max-width:700px){.cdetail{padding-left:10px}}
+
+/* advice */
+.advice{display:grid;gap:16px;margin-bottom:8px}
+.advice p{margin:0 0 10px;line-height:1.55}
+.recs{margin:0;padding-left:20px;display:grid;gap:12px}
+.rec p{margin:4px 0 0;color:var(--muted);font-size:14px}
+.rech{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.tagp{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.rec.high .tagp{border-color:currentColor}
+.limits{width:100%;border-collapse:collapse;font-size:13.5px}
+.limits th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:6px;border-bottom:1px solid var(--line)}
+.limits td{padding:6px;border-bottom:1px solid var(--line2);vertical-align:top}
+.limits .num{text-align:right;white-space:nowrap}
+@media (max-width:640px){.limits th:nth-child(4),.limits td:nth-child(4){display:none}}
+
+/* goals */
+.goals .goal{border-top:1px solid var(--line2);padding:12px 0}
+.goals .goal.done,.goals .goal.dropped{opacity:.7}
+.goals .spark{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;margin-top:6px}
+.goals .spark span{display:grid}
+.goals .spark i{font-style:normal;font-size:11px;color:var(--muted)}
+.goalacts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.suggest{border-top:1px solid var(--line2);padding-top:10px;display:grid;gap:8px;margin-top:8px}
+.goalform{display:grid;gap:10px;max-width:420px;margin:8px 0 12px}
+.goalform select{width:100%;border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:9px 11px}
+.gs-behind,.gs-at_risk{border-color:currentColor}

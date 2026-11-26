@@ -8,6 +8,7 @@ import { BillsTab, BillDialog, AccountDialog } from './components/Bills';
 import { LoansTab } from './components/Loans';
 import { BudgetTab } from './components/Budget';
 import { SettingsTab } from './components/Settings';
+import { AdviceTab } from './components/Advice';
 import { NewMonthDialog } from './components/NewMonth';
 import { openTransfer, TransferHost } from './components/Transfers';
 
@@ -68,7 +69,7 @@ function Toasts() {
   );
 }
 
-const TABS: Array<[Tab, string, keyof typeof Icon]> = [['bills', 'Bills & spending', 'bills'], ['loans', 'Loans & forecasting', 'loans'], ['budget', 'Card budget', 'budget']];
+const TABS: Array<[Tab, string, keyof typeof Icon]> = [['bills', 'Bills & spending', 'bills'], ['loans', 'Loans & forecasting', 'loans'], ['budget', 'Card budget', 'budget'], ['advice', 'Advice', 'advice']];
 
 function Shell() {
   const tab = useStore(s => s.tab), month = useStore(s => s.month), months = useStore(s => s.months), key = useStore(s => s.key);
@@ -82,7 +83,7 @@ function Shell() {
         {TABS.map(([t, label]) => <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{label}</button>)}
         <button role="tab" aria-selected={tab === 'settings'} className={`tab ${tab === 'settings' ? 'on' : ''}`} onClick={() => setTab('settings')}>Settings</button>
       </nav>
-      {tab === 'settings' ? <SettingsTab /> : noMonths ? <FirstMonth onNew={() => setDlg('newMonth')} /> : !month ? <div className="loading">Loading {key ? monthLabel(key) : ''}…</div> : (
+      {tab === 'settings' ? <SettingsTab /> : tab === 'advice' && !noMonths ? <AdviceTab /> : noMonths ? <FirstMonth onNew={() => setDlg('newMonth')} /> : !month ? <div className="loading">Loading {key ? monthLabel(key) : ''}…</div> : (
         <>
           {month.cardOnly && (tab === 'bills' || tab === 'loans') ? <CardOnlyNote /> : <>
             {tab === 'bills' && <BillsTab />}

@@ -1,19 +1,41 @@
-import { useState, type FormEvent } from 'react';
-import { acctStats, billsFor, cents, fmt, leftAfterMove, monthLabel, ordinal, r2, sum, uid, type Account, type Bill, type Month } from '@optimystic/core';
+import { createContext, useCallback, useContext, useMemo, useState, type FormEvent } from 'react';
+import { acctStats, billsFor, cents, fmt, leftAfterMove, monthLabel, monthTotals, ordinal, r2, sum, uid, type Account, type Bill, type Month } from '@optimystic/core';
 import { dispatch, getState, toast, useDerived, useStore } from '../store';
 import { ask, Field, Modal, money2, usePhone, useTouch } from '../ui';
 import { coverWithTransfer, TransfersPanel } from './Transfers';
 
 const run = (f: () => void) => { try { f(); } catch (e) { toast((e as Error).message, true); } };
 
+/** Starting balances and deposits as they're being typed, so every figure follows the keystrokes, not just the blur. */
+type Live = Record<string, { balance?: string; deposit?: string }>;
+const LiveCtx = createContext<(id: string, field: 'balance' | 'deposit', text: string | null) => void>(() => undefined);
+
+function withLive(m: Month, live: Live): Month {
+  if (!Object.keys(live).length) return m;
+  return { ...m, accounts: m.accounts.map(a => {
+    const l = live[a.id];
+    if (!l) return a;
+    return { ...a, ...(l.balance !== undefined ? { balance: cents(l.balance) } : {}), ...(l.deposit !== undefined ? { deposit: cents(l.deposit) } : {}) };
+  }) };
+}
+
 export function BillsTab() {
   const d = useDerived()!;
-  const t = d.totals;
+  const month = useStore(s => s.month)!;
+  const [live, setLive] = useState<Live>({});
+  const setField = useCallback((id: string, field: 'balance' | 'deposit', text: string | null) => setLive(cur => {
+    const next = { ...cur, [id]: { ...cur[id] } };
+    if (text === null) delete next[id][field]; else next[id][field] = text;
+    if (!Object.keys(next[id]).length) delete next[id];
+    return next;
+  }), []);
+  const shown = useMemo(() => withLive(month, live), [month, live]);
+  const t = shown === month ? d.totals : monthTotals(shown);
   return (
-    <>
+    <LiveCtx.Provider value={setField}>
       <section className="summary">
         <div className="stat hero"><div className="k">Left over</div><div className={`v num ${t.left < 0 ? 'neg' : 'pos'}`} data-testid="left-over">{fmt(t.left)}</div><div className="sub">balances + deposits − all bills</div></div>
-        <div className="stat"><div className="k">Cash on hand</div><div className="v num">{fmt(t.cash)}</div></div>
+        <div className="stat"><div className="k">Cash on hand</div><div className="v num" data-testid="cash-on-hand">{fmt(t.onHand)}</div><div className="sub">balances − bills marked paid</div></div>
         <div className="stat"><div className="k">Deposits coming</div><div className="v num pos">{fmt(t.deposits)}</div></div>
         <div className="stat"><div className="k">Monthly bills</div><div className="v num">{fmt(t.bills)}</div></div>
         <div className="stat"><div className="k">Paid</div><div className="v num">{fmt(t.paid)}</div></div>
@@ -21,15 +43,14 @@ export function BillsTab() {
         <div className="stat"><div className="k">Unassigned</div><div className={`v num ${t.unassignedCount ? 'neg' : ''}`}>{t.unassignedCount ? fmt(t.unassigned) : '—'}</div></div>
         <div className="stat"><div className="k">Card bills next month</div><div className="v num">{fmt(d.budget.projected)}</div><div className="sub">from the card budget</div></div>
       </section>
-      <p className="hint">Put each bill on the account it’s paid from{useTouch() ? ' (tap Move to…)' : ' by dragging it'}. Enter each account’s starting balance and the deposits still expected this month; every bill and transfer on an account counts against it. Ticking a bill paid is just a marker, except for the car, mortgage and HELOC bills, where it applies the payment to that loan.</p>
-      <TransfersPanel month={useStore(s => s.month)!} />
-      <Board />
-    </>
+      <p className="hint">Put each bill on the account it’s paid from{useTouch() ? ' (tap Move to…)' : ' by dragging it'}. Enter each account’s starting balance and the deposits still expected this month; every bill and transfer on an account counts against its ending balance. Cash on hand is what’s in the account now: the starting balance less the bills you’ve marked paid. Ticking a bill paid is just a marker, except for the car, mortgage and HELOC bills, where it applies the payment to that loan.</p>
+      <TransfersPanel month={month} />
+      <Board month={shown} />
+    </LiveCtx.Provider>
   );
 }
 
-function Board() {
-  const month = useStore(s => s.month)!;
+function Board({ month }: { month: Month }) {
   const [drag, setDrag] = useState<string | null>(null);
   const [over, setOver] = useState<string | null | undefined>(undefined);
   const [adding, setAdding] = useState(false);
@@ -56,6 +77,7 @@ function move(month: Month, billId: string, to: string | null) {
 
 function Column({ month, account: a, dnd }: { month: Month; account: Account | null; dnd: Dnd }) {
   const id = a ? a.id : null;
+  const setLive = useContext(LiveCtx);
   const list = billsFor(month, id);
   const isOver = dnd.drag !== null && dnd.over === id;
   const preview = isOver && a && dnd.drag ? leftAfterMove(month, dnd.drag, a.id) : null;
@@ -85,15 +107,18 @@ function Column({ month, account: a, dnd }: { month: Month; account: Account | n
           <div className="balrow"><span className="k">Starting balance</span>
             <label className="balinput num"><span>$</span>
               <Field inputMode="decimal" aria-label={`${a.name} starting balance`} value={a.balance} format={money2}
-                onCommit={v => run(() => dispatch({ type: 'account.update', id: a.id, version: a.version, patch: { balance: cents(v) } }))} /></label>
+                onLive={v => setLive(a.id, 'balance', v)}
+                onCommit={v => { setLive(a.id, 'balance', null); run(() => dispatch({ type: 'account.update', id: a.id, version: a.version, patch: { balance: cents(v) } })); }} /></label>
           </div>
           <label className="deprow"><span className="k">Monthly deposits</span>
             <span className="depin"><span>+$</span>
               <Field inputMode="decimal" aria-label={`${a.name} monthly deposits`} title="Paychecks or transfers expected into this account this month" value={a.deposit || 0} format={money2}
-                onCommit={v => run(() => dispatch({ type: 'account.update', id: a.id, version: a.version, patch: { deposit: v } }))} /></span>
+                onLive={v => setLive(a.id, 'deposit', v)}
+                onCommit={v => { setLive(a.id, 'deposit', null); run(() => dispatch({ type: 'account.update', id: a.id, version: a.version, patch: { deposit: v } })); }} /></span>
           </label>
           <div className={`bar ${s.left < 0 ? 'over' : ''}`} title={bal > 0 ? `${Math.round(s.total / bal * 100)}% of balance + deposits spoken for` : ''}><i style={{ width: pct + '%' }} /></div>
           <div className="nums num">
+            <span className="lbl" title="Starting balance, less the bills marked paid from this account and transfers marked done">Cash on hand</span><span className="onhand" data-testid={`onhand-${a.id}`}>{fmt(s.onHand)}</span>
             <span className="lbl">Bills from here</span><span>{fmt(s.total)}</span>
             <span className="lbl">Marked paid</span><span>{fmt(s.paid)}</span>
             <span className="lbl">Not marked paid</span><span>{fmt(s.due)}</span>

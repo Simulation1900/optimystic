@@ -22,6 +22,7 @@ COPY --from=build /src/apps/api/dist ./dist
 COPY --from=build /src/apps/web/dist ./web
 USER node
 EXPOSE 8080
-# busybox wget is in the alpine base, so the compose healthcheck works as written
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://localhost:8080/api/health || exit 1
+# busybox wget is in the alpine base, so the compose healthcheck works as written.
+# 127.0.0.1, not localhost: localhost is ::1 in the container and the app listens on IPv4.
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1
 CMD ["node", "dist/index.js"]

@@ -8,7 +8,11 @@ export const billsFor = (m: Month, id: string | null): Bill[] =>
     .filter(b => (b.accountId || null) === id)
     .sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99) || a.name.localeCompare(b.name));
 
-export interface AccountStats { total: number; paid: number; due: number; dep: number; xferIn: number; xferOut: number; left: number }
+export interface AccountStats {
+  total: number; paid: number; due: number; dep: number; xferIn: number; xferOut: number; left: number;
+  /** In the account now: starting balance − bills marked paid − transfers out marked done + transfers in marked done. */
+  onHand: number;
+}
 
 /**
  * Rule 1: left after bills = balance + monthly deposit − every bill on the account, paid or not
@@ -22,8 +26,11 @@ export function acctStats(m: Month, a: Account): AccountStats {
   const xfers = m.transfers || [];
   const xferIn = sum(xfers.filter(t => t.toId === a.id));
   const xferOut = sum(xfers.filter(t => t.fromId === a.id));
+  const doneIn = sum(xfers.filter(t => t.toId === a.id && t.done)), doneOut = sum(xfers.filter(t => t.fromId === a.id && t.done));
+  const bal = Number(a.balance) || 0;
   // Same formula as the HTML planner (which had no transfers), so figures match it to the cent.
-  return { total, paid, due: r2(total - paid), dep, xferIn, xferOut, left: r2((Number(a.balance) || 0) + dep - total + xferIn - xferOut) };
+  return { total, paid, due: r2(total - paid), dep, xferIn, xferOut, left: r2(bal + dep - total + xferIn - xferOut),
+    onHand: r2(bal - paid + doneIn - doneOut) };
 }
 
 /** Accounts with money to spare after bills, most first: where a shortfall transfer could come from. */
@@ -33,6 +40,8 @@ export const surplusAccounts = (m: Month, except?: string) =>
 export interface MonthTotals {
   cash: number; deposits: number; bills: number; paid: number; due: number;
   unassigned: number; unassignedCount: number; left: number;
+  /** Every account's cash on hand: starting balances less the bills marked paid from them (and done transfers). */
+  onHand: number;
   accounts: Record<string, AccountStats>;
 }
 
@@ -42,10 +51,12 @@ export function monthTotals(m: Month): MonthTotals {
   const deposits = r2(m.accounts.reduce((t, a) => t + Math.round((Number(a.deposit) || 0) * 100), 0) / 100);
   const all = sum(m.bills), paid = sum(m.bills.filter(b => b.paid));
   const un = billsFor(m, null);
+  const accounts = Object.fromEntries(m.accounts.map(a => [a.id, acctStats(m, a)]));
   return {
     cash, deposits, bills: all, paid, due: r2(all - paid), unassigned: sum(un), unassignedCount: un.length,
     left: r2(cash + deposits - all),
-    accounts: Object.fromEntries(m.accounts.map(a => [a.id, acctStats(m, a)]))
+    onHand: r2(Object.values(accounts).reduce((t, s) => t + Math.round(s.onHand * 100), 0) / 100),
+    accounts
   };
 }
 

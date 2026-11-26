@@ -9,7 +9,7 @@ import { useSyncExternalStore } from 'react';
 import { applyOp, budgetStats, clone, helocCalc, monthTotals, opTarget, shortfalls, type Month, type Op } from '@optimystic/core';
 import { api, ApiError, NetworkError, type MonthPayload, type User } from './api';
 
-export type Tab = 'bills' | 'loans' | 'budget' | 'settings';
+export type Tab = 'bills' | 'loans' | 'budget' | 'advice' | 'settings';
 export interface Toast { id: number; text: string; bad?: boolean }
 interface Pending { key: string; op: Op }
 

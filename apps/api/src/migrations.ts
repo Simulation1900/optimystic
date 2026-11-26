@@ -323,5 +323,59 @@ CREATE TABLE category_choices (
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 `
+  },
+  {
+    id: 12,
+    name: 'budget advice',
+    sql: `
+-- Advice written by an outside agent from a downloaded brief (billplanner-advice/1); the newest shows on the Advice tab.
+CREATE TABLE advice (
+  id          serial PRIMARY KEY,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  created_by  integer REFERENCES users(id) ON DELETE SET NULL,
+  brief_at    timestamptz,
+  question    text,
+  body        jsonb NOT NULL
+);
+`
+  },
+  {
+    id: 13,
+    name: 'household goals',
+    sql: `
+-- Money goals (pay off a loan early, pay down the HELOC, grow savings...). A goal applies from start_month until it's
+-- marked done or dropped (end_month), so it carries over month to month; progress is measured from the months.
+CREATE TABLE goals (
+  id           serial PRIMARY KEY,
+  kind         text NOT NULL CHECK (kind IN ('loan_payoff','heloc_balance','heloc_draws','card_overage','shortfall','savings','custom')),
+  title        text NOT NULL,
+  target       numeric(12,2),
+  ref          text,
+  due_month    text CHECK (due_month ~ '^\\d{4}-(0[1-9]|1[0-2])$'),
+  start_month  text NOT NULL CHECK (start_month ~ '^\\d{4}-(0[1-9]|1[0-2])$'),
+  end_month    text CHECK (end_month ~ '^\\d{4}-(0[1-9]|1[0-2])$'),
+  status       text NOT NULL DEFAULT 'active' CHECK (status IN ('active','done','dropped')),
+  notes        text NOT NULL DEFAULT '',
+  created_by   integer REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+`
+  },
+  {
+    id: 14,
+    name: 'agent keys',
+    sql: `
+-- Keys an agent session uses to fetch the advice brief and send advice back (SHA-256 of the key; revocable).
+CREATE TABLE agent_keys (
+  id            serial PRIMARY KEY,
+  name          text NOT NULL,
+  key_hash      text NOT NULL UNIQUE,
+  created_by    integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  last_used_at  timestamptz,
+  revoked_at    timestamptz
+);
+`
   }
 ];

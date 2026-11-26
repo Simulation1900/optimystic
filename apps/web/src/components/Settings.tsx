@@ -21,11 +21,56 @@ export function SettingsTab() {
         <Password />
         <Notifications />
         <CardSync isOwner={user.role === 'owner'} />
+        {user.role === 'owner' && <AgentKeys />}
         <Appearance />
         <Install />
         <Audit />
       </div>
     </>
+  );
+}
+
+type AgentKey = { id: number; name: string; createdAt: string; lastUsedAt: string | null };
+
+/** Keys that let an agent session fetch the advice brief and send advice back without files. */
+function AgentKeys() {
+  const [keys, setKeys] = useState<AgentKey[] | null>(null);
+  const [made, setMade] = useState<string | null>(null);
+  const [name, setName] = useState('Claude Code');
+  const load = () => api<{ keys: AgentKey[] }>('GET', '/api/agent-keys').then(r => setKeys(r.keys)).catch(() => setKeys([]));
+  useEffect(() => { void load(); }, []);
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    try { const r = await api<{ key: string }>('POST', '/api/agent-keys', { name }); setMade(r.key); void load(); }
+    catch (x) { toast((x as Error).message, true); }
+  }
+  async function revoke(k: AgentKey) {
+    if (!(await ask(`Revoke “${k.name}”? Anything using it stops working.`, 'Revoke'))) return;
+    await api('DELETE', `/api/agent-keys/${k.id}`).catch(() => undefined); void load();
+  }
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : 'never');
+  return (
+    <div className="hcard">
+      <h3>Agent access</h3>
+      <p className="hnote">An agent key lets an agent session (like Claude Code on your Claude plan) fetch the advice brief and send its advice straight back, instead of downloading and importing files. A key can read the brief, goals and advice and post advice; it can’t change bills, accounts or settings.</p>
+      {keys?.map(k => (
+        <div key={k.id} className="userrow"><b style={{ flex: 1 }}>{k.name}</b><span className="hnote">made {when(k.createdAt)} · used {when(k.lastUsedAt)}</span>
+          <button className="mini" onClick={() => revoke(k)}>Revoke</button></div>
+      ))}
+      {made ? (
+        <div style={{ marginTop: 10 }}>
+          <p className="hnote"><b>Copy this key now; it won’t be shown again.</b> Give it to the agent as <code>Authorization: Bearer …</code> and point it at <code>GET /api/agent</code>.</p>
+          <input readOnly value={made} onFocus={e => e.target.select()} style={{ width: '100%', fontFamily: 'monospace' }} aria-label="New agent key" />
+          <button className="mini" style={{ marginTop: 6 }} onClick={() => setMade(null)}>Done</button>
+        </div>
+      ) : (
+        <form className="form" onSubmit={create} style={{ marginTop: 10 }}>
+          <label htmlFor="ak-name">Name</label>
+          <input id="ak-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} />
+          <button className="pbtn" style={{ marginLeft: 0 }}>Create key</button>
+        </form>
+      )}
+    </div>
   );
 }
 

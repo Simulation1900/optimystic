@@ -21,7 +21,10 @@ describe('transfers between accounts', () => {
   it('done is only a marker; editing and removing put the numbers back', () => {
     const m = sampleMonth();
     applyOp(m, K, { type: 'transfer.add', id: 't1', fromId: 'chk1', toId: 'sav1', amount: 600 });
+    const onHand = (id: string) => acctStats(m, m.accounts.find(a => a.id === id)!).onHand;
+    expect([onHand('chk1'), onHand('sav1')]).toEqual([460, 300]);  // not done yet: still in Checking
     applyOp(m, K, { type: 'transfer.update', id: 't1', patch: { done: true } });
+    expect([onHand('chk1'), onHand('sav1')]).toEqual([-140, 900]);
     expect(left(m, 'sav1')).toBe(0);
     applyOp(m, K, { type: 'transfer.update', id: 't1', patch: { amount: 100, toId: 'chk2' } });
     expect(left(m, 'chk2')).toBe(570.37);

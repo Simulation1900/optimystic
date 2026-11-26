@@ -2,6 +2,7 @@ import { loadConfig } from './config.js';
 import { createPool, migrate } from './db.js';
 import { buildServer } from './server.js';
 import { startSyncSchedule } from './sync.js';
+import { createAgentKey } from './agentkeys.js';
 
 const cfg = loadConfig();
 const db = createPool(cfg.databaseUrl);
@@ -14,6 +15,17 @@ for (let i = 0; ; i++) {
   }
 }
 const ran = await migrate(db);
+
+// `node dist/index.js create-agent-key "<name>"` prints a new agent key for the owner and exits (run inside the container,
+// so the key can go straight into a file on the machine that will use it).
+if (process.argv[2] === 'create-agent-key') {
+  const owner = (await db.query("SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1")).rows[0];
+  if (!owner) { console.error('Set up the owner login first.'); process.exit(1); }
+  process.stdout.write((await createAgentKey(db, owner.id, process.argv[3] || 'Agent')).key + '\n');
+  await db.end();
+  process.exit(0);
+}
+
 const app = await buildServer(cfg, db, { logger: true });
 if (ran.length) app.log.info({ migrations: ran }, 'applied database migrations');
 await app.listen({ port: cfg.port, host: cfg.host });

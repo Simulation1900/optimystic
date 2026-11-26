@@ -15,3 +15,4 @@ export * from './ops.js';
 export * from './sync.js';
 export * from './statement.js';
 export * from './relabel.js';
+export * from './goals.js';

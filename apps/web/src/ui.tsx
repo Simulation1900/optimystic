@@ -10,7 +10,7 @@ export const Money = ({ v, color, className = '' }: { v: number; color?: boolean
  * doesn't send a request per digit). `format` is what's shown when not focused.
  */
 export function Field({ value, onCommit, format = v => String(v ?? ''), onLive, ...rest }:
-  { value: unknown; onCommit: (text: string) => void; format?: (v: unknown) => string; onLive?: (text: string) => void }
+  { value: unknown; onCommit: (text: string) => void; format?: (v: unknown) => string; onLive?: (text: string | null) => void } // onLive(null): editing ended
   & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   const [text, setText] = useState(format(value));
   const [focused, setFocused] = useState(false);
@@ -23,8 +23,8 @@ export function Field({ value, onCommit, format = v => String(v ?? ''), onLive, 
       value={text}
       onFocus={e => { setFocused(true); rest.onFocus?.(e); }}
       onChange={e => { setText(e.target.value); onLive?.(e.target.value); }}
-      onBlur={() => { setFocused(false); commit(); }}
-      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setText(last.current); setTimeout(() => (e.target as HTMLInputElement).blur()); } }}
+      onBlur={() => { setFocused(false); commit(); onLive?.(null); }}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setText(last.current); onLive?.(last.current); setTimeout(() => (e.target as HTMLInputElement).blur()); } }}
     />
   );
 }
@@ -88,5 +88,6 @@ export const Icon = {
   bills: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 15h4"/></svg>,
   loans: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 20h18M5 20V10l7-5 7 5v10"/><path d="M10 20v-5h4v5"/></svg>,
   budget: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/></svg>,
+  advice: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>,
   settings: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
 };

@@ -13,13 +13,21 @@ const bill = (m: Month, id: string) => m.bills.find(b => b.id === id)!;
 describe('rule 1: account math', () => {
   it('left after bills = balance + deposit − every bill on the account, paid or not', () => {
     const m = sampleMonth();
-    expect(acctStats(m, acct(m, 'chk1'))).toEqual({ total: 758.24, paid: 120, due: 638.24, dep: 1500, xferIn: 0, xferOut: 0, left: 1321.76 });
+    expect(acctStats(m, acct(m, 'chk1'))).toEqual({ total: 758.24, paid: 120, due: 638.24, dep: 1500, xferIn: 0, xferOut: 0, left: 1321.76, onHand: 460 });
     expect(acctStats(m, acct(m, 'chk2')).left).toBe(470.37);
     expect(acctStats(m, acct(m, 'sav1')).left).toBe(-600);
   });
   it('household left over = all balances + all deposits − all bills (unassigned included)', () => {
     const t = monthTotals(sampleMonth());
     expect(t).toMatchObject({ cash: 1000, deposits: 3500, bills: 3323.86, paid: 120, due: 3203.86, unassigned: 15.99, unassignedCount: 1, left: 1176.14 });
+  });
+  it('cash on hand = starting balance − bills marked paid, and follows the paid ticks', () => {
+    const m = sampleMonth();
+    expect(monthTotals(m).onHand).toBe(880);
+    const unpaid = m.bills.find(b => b.accountId === 'chk1' && !b.paid)!;
+    applyOp(m, K, { type: 'bill.update', id: unpaid.id, patch: { paid: true } });
+    expect(acctStats(m, acct(m, 'chk1')).onHand).toBe(Math.round((460 - unpaid.amount) * 100) / 100);
+    expect(acctStats(m, acct(m, 'chk1')).left).toBe(1321.76);  // the ending balance doesn't move: paid or not, a bill counts once
   });
   it('previews the left-over after a move', () => {
     const m = sampleMonth();

@@ -10,6 +10,9 @@ import { registerAuth } from './auth.js';
 import { registerPlanner } from './planner.js';
 import { registerSync } from './sync.js';
 import { registerPush } from './push.js';
+import { registerAdvice } from './advice.js';
+import { registerGoals } from './goals.js';
+import { isAgentRequest, registerAgentKeys } from './agentkeys.js';
 
 export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -27,6 +30,8 @@ export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean 
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/') || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return;
     if (!allowedOrigin) return;
+    // An agent key isn't a browser cookie, so a page elsewhere can't use it: those requests are checked by the key instead.
+    if (isAgentRequest(req.headers.authorization)) return;
     let origin = req.headers.origin || '';
     if (!origin && req.headers.referer) { try { origin = new URL(req.headers.referer).origin; } catch { origin = ''; } }
     if (origin !== allowedOrigin) return reply.code(403).send({ error: `Open the planner at ${cfg.publicUrl} to make changes.` });
@@ -53,9 +58,12 @@ export async function buildServer(cfg: Config, db: Db, opts: { logger?: boolean 
   });
 
   registerAuth(app, db, cfg);
+  registerAgentKeys(app, db);  // after the session hook, so a key's sign-in isn't cleared
   registerPlanner(app, db, cfg);
   registerSync(app, db, cfg);
   registerPush(app, db, cfg);
+  registerAdvice(app, db, cfg);
+  registerGoals(app, db);
 
   app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {
     const status = (err as { statusCode?: number }).statusCode || 500;
