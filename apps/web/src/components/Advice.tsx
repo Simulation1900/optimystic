@@ -13,6 +13,7 @@ type Advice = {
   month_over_month?: string[]; overall_progress?: string[]; goal_reviews?: Review[]; suggested_goals?: Suggested[]; charts?: ChartSpec[];
 };
 type Reply = { advice: Advice | null; history: Array<{ id: number; createdAt: string }> };
+type AiState = { available: boolean; model: string; spentUsd: number; capUsd: number; running: boolean };
 type ImportReply = { id: number; recommendations: number; categoryLimits: number; summary: number; answered: boolean; errors: string[] };
 
 const AGENT_PROMPT = 'Read the Bill Planner brief file in this folder and follow its "instructions" exactly. Save the result next to it.';
@@ -45,6 +46,17 @@ export function AdviceTab() {
   }
   const href = `/api/advice/brief?${new URLSearchParams({ months: String(months), ...(question.trim() ? { question: question.trim() } : {}) })}`;
   const a = data?.advice;
+  const [ai, setAi] = useState<AiState | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const loadAi = useCallback(() => { api<AiState>('GET', '/api/advice/ai').then(setAi).catch(() => setAi(null)); }, []);
+  useEffect(() => { loadAi(); }, [loadAi]);
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      const r = await api<ImportReply & { costUsd: number }>('POST', '/api/advice/refresh', { months, question: question.trim() || undefined });
+      setLast(r); load(); toast(`New advice is ready ($${r.costUsd.toFixed(2)}).`); window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t refresh the advice.', true); } finally { setRefreshing(false); loadAi(); }
+  }
   const [goals, setGoals] = useState<GoalRow[] | null>(null);
   const loadGoals = useCallback(() => { api<{ goals: GoalRow[] }>('GET', '/api/goals').then(r => setGoals(r.goals)).catch(e => toast((e as Error).message, true)); }, []);
   useEffect(() => { loadGoals(); }, [loadGoals]);
@@ -59,7 +71,16 @@ export function AdviceTab() {
           </select>
         )}
       </div>
-      {a ? <AdviceView a={a} /> : data && <p className="hnote">No advice yet. Download a brief below, give it to an agent, and import what it writes.</p>}
+      {ai?.available && (
+        <div className="hcard refresh" style={{ marginBottom: 18 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3 style={{ margin: 0 }}>Refresh advice with Claude</h3>
+            <p className="hnote" style={{ margin: '4px 0 0' }}>Writes new advice from your latest numbers ({months} months{question.trim() ? ', with your question below' : ''}). Takes a minute or two and about $0.30. This month: ${ai.spentUsd.toFixed(2)} of ${ai.capUsd} used.</p>
+          </div>
+          <button className="pbtn" disabled={refreshing || ai.running || ai.spentUsd >= ai.capUsd} onClick={refresh}>{refreshing || ai.running ? 'Writing advice…' : 'Refresh advice'}</button>
+        </div>
+      )}
+      {a ? <AdviceView a={a} /> : data && <p className="hnote">No advice yet. {ai?.available ? 'Use Refresh advice above, or download' : 'Download'} a brief below, give it to an agent, and import what it writes.</p>}
       <div className="settings" style={{ marginTop: 18 }}>
         <div className="hcard">
           <h3>1. Download a brief</h3>

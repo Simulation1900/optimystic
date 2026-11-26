@@ -4,6 +4,7 @@
 import type { FastifyInstance } from 'fastify';
 import { addMonths, budgetStats, GOAL_KINDS, withPending, helocCalc, isMonthKey, monthLabel, monthMetrics, monthTotals, shortfalls, todayISO, type Goal, type GoalKind, type GoalProgress, type Month } from '@optimystic/core';
 import { allMonths, goalsWithProgress, loadGoals } from './goals.js';
+import { registerAiAdvice } from './aiadvice.js';
 import type { Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
@@ -284,18 +285,35 @@ export function registerAdvice(app: FastifyInstance, db: Db, cfg: Config) {
     return { months: (await monthsWithPending()).map(([k, m]) => monthMetrics(k, m)) };
   });
 
-  app.get('/api/advice/brief', async (req, reply) => {
-    if (!requireUser(req, reply)) return;
-    const q = req.query as Record<string, string>;
-    const n = Math.min(24, Math.max(1, Number(q.months) || 6));
+  /** The brief for the last `n` months (every month still goes in month_over_month). Null when there are no months. */
+  async function makeBrief(n: number, question: string) {
     const all = await monthsWithPending();
-    if (!all.length) return reply.code(404).send({ error: 'There are no months in the planner yet.' });
-    const months = all.slice(-n);
+    if (!all.length) return null;
     const prev = await latestAdvice();
-    const brief = buildBrief(months, { question: text(q.question, 2000), today: todayISO(cfg.tz), all, goals: await goalsWithProgress(db, all),
+    return buildBrief(all.slice(-n), { question, today: todayISO(cfg.tz), all, goals: await goalsWithProgress(db, all),
       previous: prev ? { date: new Date(prev.created_at).toISOString().slice(0, 10), summary: prev.body.summary,
         recommendations: (prev.body.recommendations || []).map((r: { title: string }) => r.title),
         goal_reviews: (prev.body.goal_reviews || []).map((r: { goal_id: number; status: string; next_step: string }) => ({ goal_id: r.goal_id, status: r.status, next_step: r.next_step })) } : null });
+  }
+
+  /** Check advice against the latest month and save it. Throws on a file with nothing usable. */
+  async function saveAdvice(userId: number, body: unknown, question: string | null) {
+    const keys = await listMonths(db);
+    const latest = keys.length ? await loadMonth(db, keys[keys.length - 1]) : undefined;
+    if (!latest) throw new Error('There are no months in the planner yet.');
+    const read = readAdvice(body, latest, await loadGoals(db));
+    const row = (await db.query('INSERT INTO advice (created_by, brief_at, question, body) VALUES ($1, $2, $3, $4) RETURNING id',
+      [userId, read.briefAt, question, JSON.stringify(read.advice)])).rows[0];
+    return { id: row.id as number, recommendations: read.advice.recommendations.length, categoryLimits: read.advice.category_limits.length,
+      goalReviews: read.advice.goal_reviews.length, summary: read.advice.summary.length, charts: read.advice.charts.length,
+      answered: !!read.advice.answer, errors: read.errors };
+  }
+
+  app.get('/api/advice/brief', async (req, reply) => {
+    if (!requireUser(req, reply)) return;
+    const q = req.query as Record<string, string>;
+    const brief = await makeBrief(Math.min(24, Math.max(1, Number(q.months) || 6)), text(q.question, 2000));
+    if (!brief) return reply.code(404).send({ error: 'There are no months in the planner yet.' });
     reply.header('Content-Disposition', `attachment; filename="billplanner-brief-${todayISO(cfg.tz)}.json"`);
     reply.header('Cache-Control', 'no-store');
     return reply.type('application/json').send(JSON.stringify(brief, null, 1));
@@ -303,17 +321,10 @@ export function registerAdvice(app: FastifyInstance, db: Db, cfg: Config) {
 
   app.post('/api/advice/import', { bodyLimit: 2 * 1024 * 1024 }, async (req, reply) => {
     const user = requireUser(req, reply); if (!user) return;
-    const keys = await listMonths(db);
-    const latest = keys.length ? await loadMonth(db, keys[keys.length - 1]) : undefined;
-    if (!latest) return reply.code(404).send({ error: 'There are no months in the planner yet.' });
-    let read;
-    try { read = readAdvice(req.body, latest, await loadGoals(db)); } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
     const q = (req.body as Record<string, unknown>)?.question;
     const question = (typeof q === 'string' && !q.startsWith('<copy') ? text(q, 2000) : '') || null;
-    const row = (await db.query('INSERT INTO advice (created_by, brief_at, question, body) VALUES ($1, $2, $3, $4) RETURNING id',
-      [user.id, read.briefAt, question, JSON.stringify(read.advice)])).rows[0];
-    return { id: row.id, recommendations: read.advice.recommendations.length, categoryLimits: read.advice.category_limits.length,
-      goalReviews: read.advice.goal_reviews.length,
-      summary: read.advice.summary.length, charts: read.advice.charts.length, answered: !!read.advice.answer, errors: read.errors };
+    try { return await saveAdvice(user.id, req.body, question); } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
   });
+
+  registerAiAdvice(app, db, cfg, { makeBrief, saveAdvice });
 }

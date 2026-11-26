@@ -377,5 +377,22 @@ CREATE TABLE agent_keys (
   revoked_at    timestamptz
 );
 `
+  },
+  {
+    id: 15,
+    name: 'ai usage',
+    sql: `
+-- Every Claude API call (Refresh advice), costed, for the monthly cap.
+CREATE TABLE ai_usage (
+  id             serial PRIMARY KEY,
+  at             timestamptz NOT NULL DEFAULT now(),
+  user_id        integer REFERENCES users(id) ON DELETE SET NULL,
+  feature        text NOT NULL,
+  model          text NOT NULL,
+  input_tokens   integer NOT NULL DEFAULT 0,
+  output_tokens  integer NOT NULL DEFAULT 0,
+  cost_usd       numeric(10,4) NOT NULL DEFAULT 0
+);
+`
   }
 ];

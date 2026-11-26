@@ -237,3 +237,4 @@ dialog.sheet h3{font-size:20px}
 .chart .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin:2px 4px}
 .chart .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .chartcap{margin:4px 4px 2px}
+.hcard.refresh{display:flex;gap:16px;align-items:center;flex-wrap:wrap}

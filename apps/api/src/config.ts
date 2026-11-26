@@ -17,6 +17,12 @@ export interface Config {
   syncTimes: string[];
   /** Tests only: allow a plain-HTTP SimpleFIN server. */
   simplefinAllowHttp: boolean;
+  /** Claude API key for "Refresh advice". Empty: the button is off and advice comes from agent files. */
+  anthropicApiKey: string;
+  /** Model that writes the advice. */
+  adviceModel: string;
+  /** Monthly spending cap for Claude calls, in dollars. */
+  aiMonthlyBudgetUsd: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -38,6 +44,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: env.TRUST_PROXY ? env.TRUST_PROXY.split(',').map(x => x.trim()).filter(Boolean) : false,
     syncKey: env.SYNC_KEY || '',
     syncTimes: (env.SYNC_TIMES ?? '06:00,18:00').split(',').map(x => x.trim()).filter(x => /^\d{2}:\d{2}$/.test(x)),
-    simplefinAllowHttp: env.SIMPLEFIN_ALLOW_HTTP === '1'
+    simplefinAllowHttp: env.SIMPLEFIN_ALLOW_HTTP === '1',
+    anthropicApiKey: env.ANTHROPIC_API_KEY || '',
+    adviceModel: env.ADVICE_MODEL || 'claude-opus-5-5',
+    aiMonthlyBudgetUsd: Number(env.AI_MONTHLY_BUDGET_USD) > 0 ? Number(env.AI_MONTHLY_BUDGET_USD) : 25
   };
 }
