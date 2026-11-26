@@ -2,12 +2,12 @@
 // Claude Code on a Claude subscription) writes advice back in a fixed shape, and the app shows it. Nothing in the
 // advice changes the planner by itself; suggested category limits get an Apply button on the Advice tab.
 import type { FastifyInstance } from 'fastify';
-import { addMonths, budgetStats, GOAL_KINDS, helocCalc, isMonthKey, monthLabel, monthMetrics, monthTotals, shortfalls, todayISO, type Goal, type GoalKind, type GoalProgress, type Month } from '@optimystic/core';
+import { addMonths, budgetStats, GOAL_KINDS, withPending, helocCalc, isMonthKey, monthLabel, monthMetrics, monthTotals, shortfalls, todayISO, type Goal, type GoalKind, type GoalProgress, type Month } from '@optimystic/core';
 import { allMonths, goalsWithProgress, loadGoals } from './goals.js';
 import type { Db } from './db.js';
 import type { Config } from './config.js';
 import { requireUser } from './auth.js';
-import { listMonths, loadMonth } from './repo.js';
+import { listMonths, loadMonth, pendingCharges } from './repo.js';
 
 export const BRIEF_FORMAT = 'billplanner-brief/1';
 export const ADVICE_FORMAT = 'billplanner-advice/1';
@@ -62,8 +62,11 @@ to heloc.balance at heloc.rate_percent, raises the monthly payment, and uses up 
 shortfall will add to the HELOC balance and to its monthly interest (amount x rate / 12), and treat closing shortfalls as
 the way to stop the HELOC growing.
 
-Rules: use only the numbers in this file and arithmetic on them; never invent balances, rates or income. "Pending" charges
-haven't posted yet. A bill marked paid has already left its account. The brief holds private financial data: don't send it
+Rules: use only the numbers in this file and arithmetic on them; never invent balances, rates or income. Pending card
+charges haven't posted yet but will: every spending figure here already includes them (card totals, categories, merchants,
+overage, projected card bills), each month shows pending_total and each category its pending part, and recent charges
+flag them with pending: true. Count them in your recommendations, limits and projections like any other charge, and
+say when a category is over its limit only because of pending charges. A bill marked paid has already left its account. The brief holds private financial data: don't send it
 or any part of it anywhere else. Make sure the file is valid JSON with no comments.`;
 
 /** A store name without the noise banks add (card numbers, city, store numbers), so repeat merchants group together. */
@@ -84,8 +87,12 @@ function monthSummary(key: string, m: Month) {
     x.total += Number(e.amount) || 0; x.count++; x.cats.add(cat(e.catId)?.name ?? 'uncategorised');
     merchants.set(k, x);
   }
+  const isPending = (id: string) => id.startsWith('pending-');
+  const pendingByCat: Record<string, number> = {};
+  let pendingTotal = 0;
+  for (const e of m.budget.expenses) if (isPending(e.id)) { pendingByCat[e.catId] = (pendingByCat[e.catId] || 0) + (Number(e.amount) || 0); pendingTotal += Number(e.amount) || 0; }
   return {
-    key, label: monthLabel(key), card_only: !!m.cardOnly,
+    key, label: monthLabel(key), card_only: !!m.cardOnly, pending_total: r2(pendingTotal),
     totals: { starting_balances: t.cash, cash_on_hand: t.onHand, deposits_expected: t.deposits, bills: t.bills, bills_marked_paid: t.paid, bills_not_marked_paid: t.due,
       left_over_after_bills: t.left, unassigned_bills: t.unassigned },
     accounts: m.accounts.map(a => ({ name: a.name, starting_balance: Number(a.balance) || 0, cash_on_hand: t.accounts[a.id]?.onHand ?? null,
@@ -99,7 +106,7 @@ function monthSummary(key: string, m: Month) {
       planned_total: b.limit, spent_total: b.spent,
       cards: b.cards.map(c => ({ name: c.name, budget: c.budget, spent: c.spent, projected_bill: c.projected })),
       categories: m.budget.cats.map(c => ({ category_id: c.id, name: c.name, card: m.budget.cards.find(k => k.id === c.cardId)?.name ?? '',
-        limit: Number(c.limit) || 0, spent: r2(b.byCat[c.id] || 0) })),
+        limit: Number(c.limit) || 0, spent: r2(b.byCat[c.id] || 0), pending: r2(pendingByCat[c.id] || 0) })),
       top_merchants: [...merchants.entries()].sort((a, z) => z[1].total - a[1].total).slice(0, 25)
         .map(([name, x]) => ({ merchant: name, total: r2(x.total), charges: x.count, categories: [...x.cats] }))
     }
@@ -113,7 +120,7 @@ export function buildBrief(months: Array<[string, Month]>, opts: { question: str
   const h = helocCalc(latest, latestKey);
   const recentFrom = addMonths(latestKey, -2);
   const charges = months.filter(([k]) => k >= recentFrom).flatMap(([k, m]) => m.budget.expenses.map(e => ({
-    month: k, date: e.date, description: e.desc, merchant: merchantKey(e.desc), amount: Number(e.amount) || 0,
+    month: k, date: e.date, description: e.desc, pending: e.id.startsWith('pending-'), merchant: merchantKey(e.desc), amount: Number(e.amount) || 0,
     category: m.budget.cats.find(c => c.id === e.catId)?.name ?? 'uncategorised', card: m.budget.cards.find(c => c.id === e.cardId)?.name ?? ''
   }))).sort((a, z) => a.date.localeCompare(z.date));
   return {
@@ -264,17 +271,24 @@ export function registerAdvice(app: FastifyInstance, db: Db, cfg: Config) {
       question: row.question, by: row.by, ...row.body } : null, history: history.map(h => ({ id: h.id, createdAt: new Date(h.created_at).toISOString() })) };
   });
 
+  /** Every month with its pending card charges counted, the way the app's own bars and alerts count them. */
+  async function monthsWithPending(): Promise<Array<[string, Month]>> {
+    const out: Array<[string, Month]> = [];
+    for (const [k, m] of await allMonths(db)) out.push([k, withPending(m, await pendingCharges(db, k, m), k)]);
+    return out;
+  }
+
   // Month-by-month figures for the Advice tab's own charts (every month, oldest first).
   app.get('/api/advice/trends', async (req, reply) => {
     if (!requireUser(req, reply)) return;
-    return { months: (await allMonths(db)).map(([k, m]) => monthMetrics(k, m)) };
+    return { months: (await monthsWithPending()).map(([k, m]) => monthMetrics(k, m)) };
   });
 
   app.get('/api/advice/brief', async (req, reply) => {
     if (!requireUser(req, reply)) return;
     const q = req.query as Record<string, string>;
     const n = Math.min(24, Math.max(1, Number(q.months) || 6));
-    const all = await allMonths(db);
+    const all = await monthsWithPending();
     if (!all.length) return reply.code(404).send({ error: 'There are no months in the planner yet.' });
     const months = all.slice(-n);
     const prev = await latestAdvice();
