@@ -10,7 +10,7 @@ export const billsFor = (m: Month, id: string | null): Bill[] =>
 
 export interface AccountStats {
   total: number; paid: number; due: number; dep: number; xferIn: number; xferOut: number; left: number;
-  /** In the account now: starting balance − bills marked paid − transfers out marked done + transfers in marked done. */
+  /** Cash to work with: starting balance + monthly deposits − bills marked paid − transfers out marked done + transfers in marked done. */
   onHand: number;
 }
 
@@ -30,7 +30,7 @@ export function acctStats(m: Month, a: Account): AccountStats {
   const bal = Number(a.balance) || 0;
   // Same formula as the HTML planner (which had no transfers), so figures match it to the cent.
   return { total, paid, due: r2(total - paid), dep, xferIn, xferOut, left: r2(bal + dep - total + xferIn - xferOut),
-    onHand: r2(bal - paid + doneIn - doneOut) };
+    onHand: r2(bal + dep - paid + doneIn - doneOut) };
 }
 
 /** Accounts with money to spare after bills, most first: where a shortfall transfer could come from. */
@@ -40,7 +40,7 @@ export const surplusAccounts = (m: Month, except?: string) =>
 export interface MonthTotals {
   cash: number; deposits: number; bills: number; paid: number; due: number;
   unassigned: number; unassignedCount: number; left: number;
-  /** Every account's cash on hand: starting balances less the bills marked paid from them (and done transfers). */
+  /** Every account's cash on hand: starting balances plus deposits, less the bills marked paid from them (and done transfers). */
   onHand: number;
   accounts: Record<string, AccountStats>;
 }

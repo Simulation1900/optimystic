@@ -35,7 +35,7 @@ export function BillsTab() {
     <LiveCtx.Provider value={setField}>
       <section className="summary">
         <div className="stat hero"><div className="k">Left over</div><div className={`v num ${t.left < 0 ? 'neg' : 'pos'}`} data-testid="left-over">{fmt(t.left)}</div><div className="sub">balances + deposits − all bills</div></div>
-        <div className="stat"><div className="k">Cash on hand</div><div className="v num" data-testid="cash-on-hand">{fmt(t.onHand)}</div><div className="sub">balances − bills marked paid</div></div>
+        <div className="stat"><div className="k">Cash on hand</div><div className="v num" data-testid="cash-on-hand">{fmt(t.onHand)}</div><div className="sub">balances + deposits − bills marked paid</div></div>
         <div className="stat"><div className="k">Deposits coming</div><div className="v num pos">{fmt(t.deposits)}</div></div>
         <div className="stat"><div className="k">Monthly bills</div><div className="v num">{fmt(t.bills)}</div></div>
         <div className="stat"><div className="k">Paid</div><div className="v num">{fmt(t.paid)}</div></div>
@@ -43,7 +43,7 @@ export function BillsTab() {
         <div className="stat"><div className="k">Unassigned</div><div className={`v num ${t.unassignedCount ? 'neg' : ''}`}>{t.unassignedCount ? fmt(t.unassigned) : '—'}</div></div>
         <div className="stat"><div className="k">Card bills next month</div><div className="v num">{fmt(d.budget.projected)}</div><div className="sub">from the card budget</div></div>
       </section>
-      <p className="hint">Put each bill on the account it’s paid from{useTouch() ? ' (tap Move to…)' : ' by dragging it'}. Enter each account’s starting balance and the deposits still expected this month; every bill and transfer on an account counts against its ending balance. Cash on hand is what’s in the account now: the starting balance less the bills you’ve marked paid. Ticking a bill paid is just a marker, except for the car, mortgage and HELOC bills, where it applies the payment to that loan.</p>
+      <p className="hint">Put each bill on the account it’s paid from{useTouch() ? ' (tap Move to…)' : ' by dragging it'}. Enter each account’s starting balance and the deposits still expected this month; every bill and transfer on an account counts against its ending balance. Cash on hand is the starting balance plus the month’s deposits, less the bills you’ve marked paid. Ticking a bill paid is just a marker, except for the car, mortgage and HELOC bills, where it applies the payment to that loan.</p>
       <TransfersPanel month={month} />
       <Board month={shown} />
     </LiveCtx.Provider>
@@ -118,7 +118,7 @@ function Column({ month, account: a, dnd }: { month: Month; account: Account | n
           </label>
           <div className={`bar ${s.left < 0 ? 'over' : ''}`} title={bal > 0 ? `${Math.round(s.total / bal * 100)}% of balance + deposits spoken for` : ''}><i style={{ width: pct + '%' }} /></div>
           <div className="nums num">
-            <span className="lbl" title="Starting balance, less the bills marked paid from this account and transfers marked done">Cash on hand</span><span className="onhand" data-testid={`onhand-${a.id}`}>{fmt(s.onHand)}</span>
+            <span className="lbl" title="Starting balance plus monthly deposits, less the bills marked paid from this account and transfers marked done">Cash on hand</span><span className="onhand" data-testid={`onhand-${a.id}`}>{fmt(s.onHand)}</span>
             <span className="lbl">Bills from here</span><span>{fmt(s.total)}</span>
             <span className="lbl">Marked paid</span><span>{fmt(s.paid)}</span>
             <span className="lbl">Not marked paid</span><span>{fmt(s.due)}</span>
