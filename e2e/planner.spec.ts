@@ -250,7 +250,7 @@ test('HELOC as a transfer source: draws into the account, estimates the next pay
   await expect(dlg.getByLabel('Set the “HELOC” bill to $365.60')).toBeChecked();
   await dlg.getByRole('button', { name: 'Draw', exact: true }).click();
   await expect(page.getByTestId('left-sav1')).toHaveText('$0.00');
-  await expect(page.getByTestId('left-over')).toHaveText('$1,776.14');
+  await expect(page.getByTestId('left-over')).toHaveText('$1,772.20'); // +600 drawn, −3.94 on the higher HELOC bill
   const row = page.locator('.xrow.draw');
   await expect(row).toContainText('HELOC');
   await expect(row).toContainText('$600.00');
