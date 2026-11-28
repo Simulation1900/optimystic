@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acctStats, applyOp, buildNewMonth, monthTotals, readBackup, shortfalls, surplusAccounts, toBackup, type Month } from '../src/index.js';
+import { acctStats, applyOp, buildNewMonth, EXTERNAL, monthTotals, readBackup, shortfalls, surplusAccounts, toBackup, type Month } from '../src/index.js';
 import { sampleMonth, seqId } from './helpers.js';
 
 const K = '2026-11';
@@ -74,5 +74,48 @@ describe('transfers between accounts', () => {
     const old = JSON.parse(JSON.stringify(toBackup(st)));
     delete old.months[K].transfers;
     expect(readBackup(old).months[K].transfers).toEqual([]);
+  });
+});
+
+describe('external deposits (money from outside the household)', () => {
+  it('add to one account and to the household; count toward cash on hand once done', () => {
+    const m = sampleMonth();
+    const before = monthTotals(m);
+    expect(shortfalls(m).map(x => [x.account.id, x.need])).toEqual([['sav1', 600]]);
+    applyOp(m, K, { type: 'transfer.add', id: 'd1', fromId: EXTERNAL, toId: 'sav1', amount: '600', note: 'Tax refund' });
+    expect(acctStats(m, m.accounts[2])).toMatchObject({ extIn: 600, xferIn: 0, xferOut: 0, left: 0 });
+    expect(left(m, 'chk1')).toBe(1321.76);
+    expect(shortfalls(m)).toEqual([]);
+    const after = monthTotals(m);
+    expect(after.left).toBe(before.left + 600);
+    expect(after.deposits).toBe(before.deposits + 600);
+    expect(after.onHand).toBe(before.onHand);
+    applyOp(m, K, { type: 'transfer.update', id: 'd1', patch: { done: true } });
+    expect(monthTotals(m).onHand).toBe(before.onHand + 600);
+    expect(m.accounts.map(a => a.balance)).toEqual([580, 120, 300]);
+  });
+
+  it('needs a real account and an amount; can be switched to and from a transfer', () => {
+    const m = sampleMonth();
+    expect(() => applyOp(m, K, { type: 'transfer.add', id: 'd1', fromId: EXTERNAL, toId: 'nope', amount: 5 })).toThrow(/deposit into/);
+    expect(() => applyOp(m, K, { type: 'transfer.add', id: 'd1', fromId: EXTERNAL, toId: 'sav1', amount: 0 })).toThrow(/amount to deposit/);
+    applyOp(m, K, { type: 'transfer.add', id: 'd1', fromId: EXTERNAL, toId: 'sav1', amount: 50 });
+    applyOp(m, K, { type: 'transfer.update', id: 'd1', patch: { fromId: 'chk1' } });
+    expect(acctStats(m, m.accounts[0])).toMatchObject({ xferOut: 50 });
+    applyOp(m, K, { type: 'transfer.update', id: 'd1', patch: { fromId: EXTERNAL } });
+    expect(acctStats(m, m.accounts[0])).toMatchObject({ xferOut: 0 });
+    expect(acctStats(m, m.accounts[2])).toMatchObject({ extIn: 50 });
+  });
+
+  it('removing the account removes its deposits; monthly ones carry into a new month; backups keep them', () => {
+    const m = sampleMonth();
+    applyOp(m, K, { type: 'transfer.add', id: 'd1', fromId: EXTERNAL, toId: 'sav1', amount: 600, recurring: true });
+    applyOp(m, K, { type: 'transfer.add', id: 'd2', fromId: EXTERNAL, toId: 'chk2', amount: 25 });
+    const nm = buildNewMonth(m, { balances: 'forecast', cardBills: 'keep', copyOneTime: false }, seqId);
+    expect(nm.transfers.map(t => [t.fromId, t.toId, t.amount, t.done])).toEqual([[EXTERNAL, 'sav1', 600, false]]);
+    const st = { current: K, months: { [K]: m } };
+    expect(readBackup(JSON.parse(JSON.stringify(toBackup(st)))).months[K].transfers.map(t => t.id)).toEqual(['d1', 'd2']);
+    applyOp(m, K, { type: 'account.remove', id: 'sav1' });
+    expect(m.transfers.map(t => t.id)).toEqual(['d2']);
   });
 });

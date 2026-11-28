@@ -119,12 +119,17 @@ export interface Budget {
 }
 
 /**
- * Money moved between two of the household's accounts this month. It counts against the "from" account's
+ * Money moved between two of the household's accounts this month, or into one from outside the household
+ * (an external deposit: `fromId` is EXTERNAL, e.g. a refund, a gift or money from another household). It counts against the "from" account's
  * left-after-bills and adds to the "to" account's; balances aren't touched (they come from the bank).
  * `done` is only a marker, like a paid bill.
  */
+/** A transfer's `fromId` when the money comes from outside the household (an external deposit). */
+export const EXTERNAL = '';
+
 export interface Transfer extends RowMeta {
   id: string;
+  /** An account id, or EXTERNAL. */
   fromId: string;
   toId: string;
   amount: number;

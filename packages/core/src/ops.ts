@@ -1,3 +1,4 @@
+import { EXTERNAL } from './types.js';
 import type { Account, Bill, Transfer, BudgetCard, BudgetCategory, CardExpense, Heloc, Loan, LoanKind, Month } from './types.js';
 import { cents, r2 } from './money.js';
 import { monthBounds } from './dates.js';
@@ -107,12 +108,14 @@ const fresh = (list: Array<{ id: string }>, id: string) => {
 };
 
 function setTransfer(m: Month, t: Transfer, v: { fromId?: string; toId?: string; amount?: unknown; note?: unknown }) {
-  const from = need(m.accounts.find(a => a.id === v.fromId), 'account to transfer from');
-  const to = need(m.accounts.find(a => a.id === v.toId), 'account to transfer to');
-  if (from.id === to.id) throw new PlannerError('Pick two different accounts.');
+  // An external deposit has no "from" account: the money comes from outside the household.
+  const external = (v.fromId ?? EXTERNAL) === EXTERNAL;
+  const fromId = external ? EXTERNAL : need(m.accounts.find(a => a.id === v.fromId), 'account to transfer from').id;
+  const to = need(m.accounts.find(a => a.id === v.toId), external ? 'account to deposit into' : 'account to transfer to');
+  if (fromId === to.id) throw new PlannerError('Pick two different accounts.');
   const amount = money(v.amount);
-  if (!(amount > 0)) throw new PlannerError('Enter an amount to transfer.');
-  t.fromId = from.id; t.toId = to.id; t.amount = amount;
+  if (!(amount > 0)) throw new PlannerError(external ? 'Enter an amount to deposit.' : 'Enter an amount to transfer.');
+  t.fromId = fromId; t.toId = to.id; t.amount = amount;
   t.note = String(v.note ?? '').trim().slice(0, 120);
 }
 

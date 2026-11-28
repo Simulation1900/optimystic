@@ -213,6 +213,28 @@ test('transfers: cover a short account from one with money to spare, mark it don
   await expect(page.locator('.xrow')).toContainText('Every month');
 });
 
+test('external deposits: money from outside the household into one account', async ({ page }) => {
+  await seeded(page);
+  await page.getByTestId('deposit-sav1').click();
+  const dlg = page.getByRole('dialog');
+  await expect(dlg.getByRole('heading', { name: 'External deposit' })).toBeVisible();
+  await expect(dlg.getByLabel('From')).toHaveValue('');
+  await expect(dlg.getByLabel('To')).toHaveValue('sav1');
+  await dlg.getByLabel('Amount').fill('600');
+  await expect(dlg.getByTestId('transfer-preview')).toContainText('Ending balance: Savings $0.00');
+  await dlg.getByLabel('Note').fill('Tax refund');
+  await dlg.getByRole('button', { name: 'Add deposit' }).click();
+  await expect(page.getByTestId('left-sav1')).toHaveText('$0.00');
+  await expect(page.getByTestId('ext-sav1')).toHaveText('+$600.00');
+  await expect(page.getByTestId('left-chk1')).toHaveText('$1,321.76'); // no other account pays for it
+  await expect(page.getByTestId('left-over')).toHaveText('$1,776.14'); // new money for the household
+  await expect(page.locator('.xrow')).toContainText('External');
+  await expect(page.locator('.xrow')).toContainText('Tax refund');
+  await page.getByLabel('Mark $600.00 deposit done').check();
+  await expect(page.locator('.syncpill')).toHaveText('Saved');
+  await expect(page.locator('.xrow.done')).toHaveCount(1);
+});
+
 test('a tapped notification’s link opens the right tab', async ({ page }) => {
   await seeded(page);
   await page.goto('/?tab=budget');

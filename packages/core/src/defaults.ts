@@ -93,7 +93,7 @@ export function normalizeMonth(raw: Partial<Month> | undefined, key: string): Mo
   const ids = new Set(accounts.map(a => a.id));
   const transfers = (Array.isArray(m.transfers) ? m.transfers : [])
     .map(t => ({ ...t, id: s(t.id), fromId: s(t.fromId), toId: s(t.toId), amount: n(t.amount), note: s(t.note), recurring: !!t.recurring, done: !!t.done }))
-    .filter(t => ids.has(t.fromId) && ids.has(t.toId) && t.fromId !== t.toId);
+    .filter(t => (t.fromId === '' || ids.has(t.fromId)) && ids.has(t.toId) && t.fromId !== t.toId); // '' = external deposit
   const out: Month = { accounts, bills, transfers, loans, heloc, budget };
   if (m.cardOnly) out.cardOnly = true;
   if (m.meta) out.meta = m.meta;

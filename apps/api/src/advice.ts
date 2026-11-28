@@ -103,7 +103,7 @@ function monthSummary(key: string, m: Month) {
     shortfalls: short.map(s => ({ account: s.account.name, need: s.need })),
     projected_heloc_draw: r2(short.reduce((t, s) => t + s.need, 0)),
     bills: m.bills.map(x => ({ name: x.name, amount: Number(x.amount) || 0, due_day: x.dueDay, recurring: x.recurring, paid: x.paid, account: acct(x.accountId) })),
-    transfers: (m.transfers || []).map(x => ({ from: acct(x.fromId), to: acct(x.toId), amount: Number(x.amount) || 0, note: x.note, recurring: x.recurring, done: x.done })),
+    transfers: (m.transfers || []).map(x => ({ from: x.fromId ? acct(x.fromId) : 'outside the household (external deposit)', to: acct(x.toId), amount: Number(x.amount) || 0, note: x.note, recurring: x.recurring, done: x.done })),
     card_budget: {
       planned_total: b.limit, spent_total: b.spent,
       cards: b.cards.map(c => ({ name: c.name, budget: c.budget, spent: c.spent, projected_bill: c.projected })),

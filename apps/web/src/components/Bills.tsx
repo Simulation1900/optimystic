@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type FormEve
 import { acctStats, billsFor, cents, fmt, leftAfterMove, monthLabel, monthTotals, ordinal, r2, sum, uid, type Account, type Bill, type Month } from '@optimystic/core';
 import { dispatch, getState, toast, useDerived, useStore } from '../store';
 import { ask, Field, Modal, money2, usePhone, useTouch } from '../ui';
-import { coverWithTransfer, TransfersPanel } from './Transfers';
+import { coverWithTransfer, openDeposit, TransfersPanel } from './Transfers';
 
 const run = (f: () => void) => { try { f(); } catch (e) { toast((e as Error).message, true); } };
 
@@ -122,10 +122,12 @@ function Column({ month, account: a, dnd }: { month: Month; account: Account | n
             <span className="lbl">Bills from here</span><span>{fmt(s.total)}</span>
             <span className="lbl">Marked paid</span><span>{fmt(s.paid)}</span>
             <span className="lbl">Not marked paid</span><span>{fmt(s.due)}</span>
+            {s.extIn > 0 && <><span className="lbl">External deposits</span><span className="pos" data-testid={`ext-${a.id}`}>+{fmt(s.extIn)}</span></>}
             {s.xferIn > 0 && <><span className="lbl">Transfers in</span><span className="pos" data-testid={`xin-${a.id}`}>+{fmt(s.xferIn)}</span></>}
             {s.xferOut > 0 && <><span className="lbl">Transfers out</span><span data-testid={`xout-${a.id}`}>−{fmt(s.xferOut)}</span></>}
             <span className="leftlbl">Ending balance</span><span className={`left ${s.left < 0 ? 'neg' : 'pos'}`} data-testid={`left-${a.id}`}>{fmt(s.left)}</span>
           </div>
+          <button type="button" className="linkbtn" data-testid={`deposit-${a.id}`} onClick={() => openDeposit(a.id)}>+ External deposit</button>
           {s.left < 0 && month.accounts.length > 1 && (
             <button type="button" className="linkbtn covertx" onClick={() => coverWithTransfer(month, a.id, r2(-s.left))}>Cover {fmt(-s.left)} with a transfer</button>
           )}
