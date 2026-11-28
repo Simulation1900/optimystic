@@ -87,6 +87,36 @@ export function helocCalc(m: Month, key: string) {
 }
 export type HelocCalc = ReturnType<typeof helocCalc>;
 
+export interface HelocNextPayment {
+  /** The month the payment is for: this one while its HELOC bill isn't paid yet, otherwise the next. */
+  key: string;
+  amount: number;
+  /** Interest only (draw period), or principal and interest (repayment period). */
+  interestOnly: boolean;
+}
+
+/**
+ * The next HELOC payment if `extra` more were drawn now (0: as things stand). Same rules as the
+ * payment panel: interest-only during the draw period (balance × APR × days ÷ 365), then the
+ * balance amortized over the repayment months left.
+ */
+export function helocNextPayment(m: Month, key: string, extra = 0): HelocNextPayment {
+  const h = m.heloc, hb = helocBill(m);
+  const rate = (Number(h.rate) || 0) / 100, r = rate / 12;
+  const endKey = addMonths(h.start || '2025-05', Math.round((Number(h.drawYears) || 0) * 12));
+  const repayEndKey = addMonths(endKey, Math.round((Number(h.repayYears) || 0) * 12));
+  const B = Math.max(0, Number(h.balance) || 0);
+  const pending = !hb || !hb.paid;
+  const at = pending ? key : addMonths(key, 1);
+  // This month's payment is figured on the balance before it (a paid one has already come off B).
+  const bal = r2((pending && hb?.helocApplied ? B + hb.helocApplied.principal : B) + Math.max(0, extra));
+  const interestOnly = mIdx(endKey) - mIdx(at) > 0;
+  const amount = interestOnly
+    ? r2(bal * rate * daysIn(at) / 365)
+    : ceil2(amRaw(bal, Math.max(1, mIdx(repayEndKey) - mIdx(at)), r));
+  return { key: at, amount, interestOnly };
+}
+
 /** If someone pays a custom amount that leaves a balance when repayment starts, what would the payment become? */
 export function customWarning(c: HelocCalc): { kind: 'below-min'; min: number } | { kind: 'repay-jump'; owed: number; need: number; at: string } | null {
   const cu = c.custom;

@@ -235,6 +235,32 @@ test('external deposits: money from outside the household into one account', asy
   await expect(page.locator('.xrow.done')).toHaveCount(1);
 });
 
+test('HELOC as a transfer source: draws into the account, estimates the next payment, sets the HELOC bill, undoes', async ({ page }) => {
+  await seeded(page);
+  await page.getByRole('button', { name: 'Transfer', exact: true }).click();
+  const dlg = page.getByRole('dialog');
+  await dlg.getByLabel('From').selectOption('__heloc');
+  await expect(dlg.getByRole('heading', { name: 'Draw on the HELOC' })).toBeVisible();
+  await dlg.getByLabel('To').selectOption('sav1');
+  await dlg.getByLabel('Amount').fill('600');
+  await expect(dlg.getByTestId('transfer-preview')).toContainText('Ending balance: Savings $0.00');
+  // 55,601.82 × 8% × 30 ÷ 365, up from 361.66
+  await expect(dlg.getByTestId('heloc-next-payment')).toContainText('$365.60');
+  await expect(dlg.getByTestId('heloc-next-payment')).toContainText('was $361.66');
+  await expect(dlg.getByLabel('Set the “HELOC” bill to $365.60')).toBeChecked();
+  await dlg.getByRole('button', { name: 'Draw', exact: true }).click();
+  await expect(page.getByTestId('left-sav1')).toHaveText('$0.00');
+  await expect(page.getByTestId('left-over')).toHaveText('$1,776.14');
+  const row = page.locator('.xrow.draw');
+  await expect(row).toContainText('HELOC');
+  await expect(row).toContainText('$600.00');
+  await expect(page.locator('.syncpill')).toHaveText('Saved');
+  await row.getByRole('button', { name: 'Undo' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Undo draw' }).click();
+  await expect(page.locator('.xrow.draw')).toHaveCount(0);
+  await expect(page.getByTestId('left-sav1')).toHaveText('-$600.00');
+});
+
 test('a tapped notification’s link opens the right tab', async ({ page }) => {
   await seeded(page);
   await page.goto('/?tab=budget');

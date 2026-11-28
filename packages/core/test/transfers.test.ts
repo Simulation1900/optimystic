@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acctStats, applyOp, buildNewMonth, EXTERNAL, monthTotals, readBackup, shortfalls, surplusAccounts, toBackup, type Month } from '../src/index.js';
+import { acctStats, applyOp, buildNewMonth, EXTERNAL, helocCalc, helocNextPayment, monthTotals, readBackup, shortfalls, surplusAccounts, toBackup, type Month } from '../src/index.js';
 import { sampleMonth, seqId } from './helpers.js';
 
 const K = '2026-11';
@@ -117,5 +117,28 @@ describe('external deposits (money from outside the household)', () => {
     expect(readBackup(JSON.parse(JSON.stringify(toBackup(st)))).months[K].transfers.map(t => t.id)).toEqual(['d1', 'd2']);
     applyOp(m, K, { type: 'account.remove', id: 'sav1' });
     expect(m.transfers.map(t => t.id)).toEqual(['d2']);
+  });
+});
+
+describe('next HELOC payment (for a draw from the transfer dialog)', () => {
+  it('this month while its HELOC bill is unpaid: matches the payment panel, and grows with a draw', () => {
+    const m = sampleMonth();
+    expect(helocNextPayment(m, K)).toEqual({ key: K, amount: helocCalc(m, K).thisMonth, interestOnly: true });
+    expect(helocNextPayment(m, K).amount).toBe(361.66);
+    expect(helocNextPayment(m, K, 1000).amount).toBe(368.23); // 56,001.82 × 8% × 30 ÷ 365
+  });
+
+  it('next month once this month’s is paid', () => {
+    const m = sampleMonth();
+    m.bills.find(b => b.name === 'HELOC')!.paid = true;
+    expect(helocNextPayment(m, K)).toEqual({ key: '2026-12', amount: 373.71, interestOnly: true }); // 31 days
+  });
+
+  it('principal and interest in the repayment period', () => {
+    const m = sampleMonth();
+    const p = helocNextPayment(m, '2036-01');
+    expect(p.interestOnly).toBe(false);
+    expect(p.amount).toBe(helocCalc(m, '2036-01').thisMonth);
+    expect(helocNextPayment(m, '2036-01', 5000).amount).toBeGreaterThan(p.amount);
   });
 });
